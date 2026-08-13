@@ -47,11 +47,14 @@
     @keyframes breathe { 0%,100% { transform: scale(1); opacity: 0.5; } 50% { transform: scale(1.2); opacity: 1; } }
 
     .hero-icon {
-      font-size: 80px;
+      width: 120px;
+      height: 120px;
       margin-bottom: 24px;
       filter: drop-shadow(0 0 30px rgba(174,133,250,0.6));
       position: relative;
       z-index: 1;
+      border-radius: 28px;
+      animation: breathe 3s ease-in-out infinite;
     }
     .hero h1 {
       font-size: 72px;
@@ -178,7 +181,7 @@
 <body>
   <!-- Hero -->
   <section class="hero">
-    <div class="hero-icon">🔮</div>
+    <img class="hero-icon" src="hydra-icon.png" alt="Hydra — Context Hydration Engine">
     <h1>Hydra</h1>
     <p>Turn scattered agent work into a magical second-brain oracle. Beautiful UI for humans, CLI and MCP for agents.</p>
     <div class="cta">
