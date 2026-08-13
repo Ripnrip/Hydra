@@ -64,10 +64,11 @@ public enum DeliveryState: String, Sendable, CaseIterable, Equatable {
     /// Whether this state is mechanically enforced in the current outbox, or aspirational (policy-only).
     public var isMechanicallyTracked: Bool {
         switch self {
-        case .submitted, .certified, .blocked:
-            return true  // maps to pending / applied / blocked in store.py
-        default:
-            return false
+        case .submitted, .blocked:
+            return true  // maps to pending / blocked in store.py
+        case .canonicalCommitted, .canonicalReachable, .projectionCommitted,
+             .gitlinkPinned, .validated, .certified:
+            return false  // policy-defined only, not enforced in outbox code
         }
     }
 }
