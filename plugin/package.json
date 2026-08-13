@@ -1,0 +1,17 @@
+{
+  "name": "hydra-obsidian-plugin",
+  "version": "0.1.0",
+  "description": "Context hydration engine for Obsidian — classify, tag, link, and visualize your vault",
+  "main": "src/main.ts",
+  "scripts": {
+    "dev": "esbuild src/main.ts --bundle --external:obsidian --external:electron --outfile=main.js --format=cjs",
+    "build": "esbuild src/main.ts --bundle --external:obsidian --external:electron --outfile=main.js --format=cjs --minify",
+    "watch": "esbuild src/main.ts --bundle --external:obsidian --external:electron --outfile=main.js --format=cjs --watch"
+  },
+  "devDependencies": {
+    "esbuild": "^0.21.0",
+    "obsidian": "^1.5.0",
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0"
+  }
+}

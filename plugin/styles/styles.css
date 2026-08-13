@@ -1,0 +1,186 @@
+/* Hydra Plugin Styles — Purple Obsidian Theme */
+
+/* Sidebar */
+.hydra-sidebar {
+  padding: 12px;
+}
+
+.hydra-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.hydra-logo {
+  font-size: 1.2em;
+  font-weight: 700;
+  color: #b388ff;
+  letter-spacing: 0.05em;
+}
+
+.hydra-tagline {
+  font-size: 0.75em;
+  color: var(--text-muted);
+  letter-spacing: 0.03em;
+}
+
+/* Stats */
+.hydra-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.hydra-stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 6px;
+  border-radius: 8px;
+  background: rgba(179, 136, 255, 0.08);
+  border: 1px solid rgba(179, 136, 255, 0.15);
+}
+
+.hydra-stat-icon { font-size: 1.1em; margin-bottom: 2px; }
+.hydra-stat-value { font-size: 1.3em; font-weight: 700; color: #b388ff; }
+.hydra-stat-label { font-size: 0.7em; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+
+/* Section titles */
+.hydra-section-title {
+  font-size: 0.65em;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin: 16px 0 8px;
+}
+
+/* PARA breakdown */
+.hydra-para-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+  font-size: 0.8em;
+}
+
+.hydra-para-cat { color: var(--text-normal); }
+.hydra-para-count { color: #b388ff; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* Tag chips */
+.hydra-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 8px;
+  margin: 2px;
+  border-radius: 12px;
+  background: rgba(179, 136, 255, 0.12);
+  border: 1px solid rgba(179, 136, 255, 0.2);
+  cursor: pointer;
+  transition: background 0.2s;
+  font-size: 0.8em;
+}
+
+.hydra-tag-chip:hover { background: rgba(179, 136, 255, 0.25); }
+.hydra-tag-applied { opacity: 0.4; cursor: default; }
+
+.hydra-tag-hash { color: #b388ff; font-weight: 700; }
+
+/* Wikilinks */
+.hydra-wikilink {
+  font-family: var(--font-monospace);
+  font-size: 0.8em;
+  padding: 2px 0;
+}
+
+.hydra-link-bracket { color: var(--text-muted); }
+
+/* Relationships */
+.hydra-rel-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  font-size: 0.8em;
+}
+
+.hydra-rel-type {
+  font-family: var(--font-monospace);
+  font-size: 0.75em;
+  color: #b388ff;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.hydra-rel-arrow { color: var(--text-muted); }
+.hydra-rel-target { color: var(--text-normal); }
+
+/* Actions */
+.hydra-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 16px;
+}
+
+.hydra-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(179, 136, 255, 0.15);
+  border: 1px solid rgba(179, 136, 255, 0.25);
+  color: #b388ff;
+  cursor: pointer;
+  font-size: 0.85em;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.hydra-btn:hover { background: rgba(179, 136, 255, 0.25); }
+
+/* Health widget */
+.hydra-health { padding: 12px; }
+
+.hydra-health-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.hydra-health-healthy { background: rgba(73, 222, 120, 0.1); }
+.hydra-health-warning { background: rgba(229, 192, 87, 0.1); }
+.hydra-health-critical { background: rgba(229, 92, 110, 0.1); }
+
+.hydra-health-status { font-weight: 700; letter-spacing: 0.05em; }
+.hydra-health-summary { color: var(--text-muted); font-size: 0.85em; }
+
+.hydra-check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 6px;
+  margin-bottom: 4px;
+}
+
+.hydra-check-icon { font-size: 1.1em; }
+
+.hydra-check-info { flex: 1; }
+.hydra-check-name { font-weight: 600; font-size: 0.9em; }
+.hydra-check-message { color: var(--text-muted); font-size: 0.75em; margin-top: 1px; }
+
+.hydra-check-badge {
+  font-size: 0.6em;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 2px 6px;
+  border-radius: 10px;
+}
+
+.hydra-badge-healthy { background: rgba(73, 222, 120, 0.15); color: #49de78; }
+.hydra-badge-warning { background: rgba(229, 192, 87, 0.15); color: #e5c057; }
+.hydra-badge-critical { background: rgba(229, 92, 110, 0.15); color: #e55c6e; }

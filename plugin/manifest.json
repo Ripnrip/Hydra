@@ -1,0 +1,10 @@
+{
+  "id": "hydra",
+  "name": "Hydra",
+  "version": "0.1.0",
+  "minAppVersion": "1.5.0",
+  "description": "Context hydration engine — classify, tag, link, and visualize your vault with GPU-accelerated relationships.",
+  "author": "Binary Bros",
+  "authorUrl": "https://github.com/Ripnrip/Hydra",
+  "isDesktopOnly": true
+}
