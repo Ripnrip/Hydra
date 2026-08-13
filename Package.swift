@@ -9,6 +9,7 @@ let package = Package(
         .library(name: "HydraVault", targets: ["HydraVault"]),
         .library(name: "HydraHealth", targets: ["HydraHealth"]),
         .library(name: "HydraMCP", targets: ["HydraMCP"]),
+        .library(name: "HydraGraph", targets: ["HydraGraph"]),
         .executable(name: "hydra", targets: ["HydraCLI"]),
         .executable(name: "HydraApp", targets: ["HydraApp"]),
     ],
@@ -30,12 +31,13 @@ let package = Package(
             .product(name: "Hummingbird", package: "hummingbird"),
             .product(name: "HummingbirdCore", package: "hummingbird"),
         ]),
+        .target(name: "HydraGraph", dependencies: ["HydraCore"]),
         .executableTarget(name: "HydraCLI", dependencies: [
             "HydraCore", "HydraVault", "HydraHealth", "HydraMCP",
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
         ]),
         .executableTarget(name: "HydraApp", dependencies: [
-            "HydraCore", "HydraVault", "HydraHealth", "HydraMCP",
+            "HydraCore", "HydraVault", "HydraHealth", "HydraGraph",
             .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
         ]),
         .testTarget(name: "HydraCoreTests", dependencies: ["HydraCore"]),
