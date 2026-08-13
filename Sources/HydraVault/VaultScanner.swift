@@ -1,5 +1,5 @@
 import Foundation
-import BrainCore
+import HydraCore
 import CryptoKit
 
 // MARK: - Vault Scanner

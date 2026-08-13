@@ -2,15 +2,15 @@
 import PackageDescription
 
 let package = Package(
-    name: "BrainOracle",
+    name: "Hydra",
     platforms: [.macOS(.v15)],
     products: [
-        .library(name: "BrainCore", targets: ["BrainCore"]),
-        .library(name: "BrainVault", targets: ["BrainVault"]),
-        .library(name: "BrainHealth", targets: ["BrainHealth"]),
-        .library(name: "BrainMCP", targets: ["BrainMCP"]),
-        .executable(name: "brain-oracle", targets: ["BrainCLI"]),
-        .executable(name: "BrainOracleApp", targets: ["BrainApp"]),
+        .library(name: "HydraCore", targets: ["HydraCore"]),
+        .library(name: "HydraVault", targets: ["HydraVault"]),
+        .library(name: "HydraHealth", targets: ["HydraHealth"]),
+        .library(name: "HydraMCP", targets: ["HydraMCP"]),
+        .executable(name: "hydra", targets: ["HydraCLI"]),
+        .executable(name: "HydraApp", targets: ["HydraApp"]),
     ],
     dependencies: [
         .package(url: "https://github.com/hummingbird-project/hummingbird.git", from: "2.25.0"),
@@ -20,54 +20,30 @@ let package = Package(
         .package(url: "https://github.com/pointfreeco/swift-composable-architecture", from: "1.15.0"),
     ],
     targets: [
-        // Core domain models + pipeline contracts — pure Swift, no UI/server deps
-        .target(name: "BrainCore", dependencies: [
+        .target(name: "HydraCore", dependencies: [
             .product(name: "Logging", package: "swift-log"),
         ]),
-
-        // Vault integration — scanner, writer, frontmatter renderer, PARA mapping
-        .target(name: "BrainVault", dependencies: ["BrainCore"]),
-
-        // Health + maintenance — file watchers, staleness, tag consistency, cron jobs
-        .target(name: "BrainHealth", dependencies: [
-            "BrainCore",
-            "BrainVault",
-        ]),
-
-        // MCP server — Hummingbird, Claude stdio
-        .target(name: "BrainMCP", dependencies: [
-            "BrainCore",
-            "BrainVault",
+        .target(name: "HydraVault", dependencies: ["HydraCore"]),
+        .target(name: "HydraHealth", dependencies: ["HydraCore", "HydraVault"]),
+        .target(name: "HydraMCP", dependencies: [
+            "HydraCore", "HydraVault", "HydraHealth",
             .product(name: "Hummingbird", package: "hummingbird"),
             .product(name: "HummingbirdCore", package: "hummingbird"),
         ]),
-
-        // CLI executable
-        .executableTarget(name: "BrainCLI", dependencies: [
-            "BrainCore",
-            "BrainVault",
-            "BrainHealth",
-            "BrainMCP",
+        .executableTarget(name: "HydraCLI", dependencies: [
+            "HydraCore", "HydraVault", "HydraHealth", "HydraMCP",
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
         ]),
-
-        // SwiftUI app
-        .executableTarget(name: "BrainApp", dependencies: [
-            "BrainCore",
-            "BrainVault",
-            "BrainHealth",
-            "BrainMCP",
+        .executableTarget(name: "HydraApp", dependencies: [
+            "HydraCore", "HydraVault", "HydraHealth", "HydraMCP",
             .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
         ]),
-
-        // Tests
-        .testTarget(name: "BrainCoreTests", dependencies: ["BrainCore"]),
-        .testTarget(name: "BrainVaultTests", dependencies: ["BrainVault"]),
-        .testTarget(name: "BrainHealthTests", dependencies: ["BrainHealth"]),
+        .testTarget(name: "HydraCoreTests", dependencies: ["HydraCore"]),
+        .testTarget(name: "HydraVaultTests", dependencies: ["HydraVault"]),
+        .testTarget(name: "HydraHealthTests", dependencies: ["HydraHealth"]),
         .testTarget(name: "SnapshotTests", dependencies: [
-            "BrainCore",
-            "BrainVault",
-            "BrainHealth",
+            "HydraCore", "HydraVault", "HydraHealth",
+            "HydraApp",
             .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
         ]),
     ]

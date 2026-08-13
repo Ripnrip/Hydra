@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-@testable import BrainVault
+@testable import HydraVault
 
 @Test func frontmatterParsing() {
     let content = "---\ntitle: Test\ntags: swift, testing\n---\n# Body"

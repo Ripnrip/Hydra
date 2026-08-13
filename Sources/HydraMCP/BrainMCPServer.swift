@@ -1,7 +1,7 @@
 import Foundation
-import BrainCore
-import BrainVault
-import BrainHealth
+import HydraCore
+import HydraVault
+import HydraHealth
 
 // MARK: - MCP Tool Definitions
 
@@ -56,7 +56,7 @@ public enum MCPTool: String, Sendable, CaseIterable {
 
 /// Minimal JSON-RPC 2.0 server for Claude stdio transport.
 /// Reads requests from stdin, writes responses to stdout.
-public actor BrainMCPServer {
+public actor HydraMCPServer {
     private let vaultRoot: String
 
     public init(vaultRoot: String) {
@@ -184,7 +184,7 @@ public actor BrainMCPServer {
             "result": [
                 "protocolVersion": "2024-11-05",
                 "serverInfo": [
-                    "name": "brain-oracle",
+                    "name": "hydra",
                     "version": "0.1.0"
                 ]
             ]

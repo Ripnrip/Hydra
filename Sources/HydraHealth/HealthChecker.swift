@@ -1,6 +1,6 @@
 import Foundation
-import BrainCore
-import BrainVault
+import HydraCore
+import HydraVault
 
 // MARK: - Health Checker
 

@@ -1,7 +1,7 @@
 import Testing
 import Foundation
-@testable import BrainHealth
-@testable import BrainVault
+@testable import HydraHealth
+@testable import HydraVault
 
 @Test func healthCheckerProducesReport() {
     let inventory = VaultInventory(vaultRoot: "/test", notes: [], scannedAt: Date())

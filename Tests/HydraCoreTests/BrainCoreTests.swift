@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-@testable import BrainCore
+@testable import HydraCore
 
 @Test func sourceArtifactDefaults() {
     let artifact = SourceArtifact(sourcePath: "/test/path")

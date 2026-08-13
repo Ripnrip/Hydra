@@ -1,16 +1,16 @@
 import Foundation
 import ArgumentParser
-import BrainCore
-import BrainVault
-import BrainHealth
-import BrainMCP
+import HydraCore
+import HydraVault
+import HydraHealth
+import HydraMCP
 
 // MARK: - Brain Oracle CLI
 
 @main
 struct BrainOracleCLI: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        commandName: "brain-oracle",
+        commandName: "hydra",
         abstract: "Context Hydration Engine — sources → enrich → vault → export. 100% Swift.",
         subcommands: [Scan.self, Health.self, Hydrate.self, Search.self, Serve.self]
     )
@@ -117,7 +117,7 @@ extension BrainOracleCLI {
             print("Hydration (dry run: \(dryRun))")
             print("Source: \(source)")
             print("Vault:  \(vault)")
-            print("\n[Pipeline not yet wired — BrainCore classifier in progress]")
+            print("\n[Pipeline not yet wired — HydraCore classifier in progress]")
         }
     }
 }
@@ -180,7 +180,7 @@ extension BrainOracleCLI {
         var vault: String
 
         func run() async throws {
-            let server = BrainMCPServer(vaultRoot: vault)
+            let server = HydraMCPServer(vaultRoot: vault)
             await server.run()
         }
     }

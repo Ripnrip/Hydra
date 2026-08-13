@@ -1,7 +1,7 @@
 import SwiftUI
-import BrainCore
-import BrainVault
-import BrainHealth
+import HydraCore
+import HydraVault
+import HydraHealth
 
 // MARK: - App Entry Point
 

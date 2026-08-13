@@ -1,5 +1,5 @@
 import Foundation
-import BrainCore
+import HydraCore
 
 // MARK: - Source Adapter Protocol
 
