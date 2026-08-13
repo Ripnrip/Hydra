@@ -183,19 +183,13 @@ struct E2EFlowSnapshots {
 @MainActor
 struct DryRunPreviewSnapshots {
 
-    @Test("Summary tab")
-    func dryRunSummary() {
-        snapView(DryRunPreviewView(), named: "dryrun_summary", width: 900, height: 600)
-    }
-
-    @Test("Tag assignments")
-    func dryRunTags() {
-        snapView(DryRunPreviewView(preview: .sample), named: "dryrun_tags", width: 900, height: 600)
-    }
-
-    @Test("Relationships")
-    func dryRunRelationships() {
-        snapView(DryRunPreviewView(preview: .sample), named: "dryrun_relationships", width: 900, height: 600)
+    @Test("Artifact previews")
+    func dryRunPreview() {
+        snapView(
+            ScrollView { DryRunPreviewView(artifacts: DryRunSampleData.artifacts, vaultPath: DryRunSampleData.vaultPath) }
+                .background(Color.hydraVoid),
+            named: "dryrun_preview", width: 900, height: 600
+        )
     }
 }
 
@@ -318,9 +312,23 @@ struct DryRunSnapshots {
 @Suite("Hydra Animations")
 @MainActor
 struct AnimationGallerySnapshots {
-    @Test("Full gallery")
-    func animationGallery() {
-        snapView(HydraAnimationGallery(), named: "animation_gallery", width: 900, height: 600)
+    @Test("Core animation stack")
+    func animationCore() {
+        snapView(
+            VStack(spacing: 24) {
+                HydraHUDCore()
+                HStack(spacing: 20) {
+                    HydraLivePulse()
+                    HydraBreathingRing()
+                    HydraScanSweep()
+                }
+                HydraRecallWaveform()
+                HydraShimmerSkeleton()
+            }
+            .frame(width: 400, height: 300)
+            .background(Color.hydraVoid),
+            named: "animation_core", width: 400, height: 300
+        )
     }
 }
 
