@@ -1,0 +1,106 @@
+/* Hydra Obsidian Plugin — styles */
+/* Purple accent matching the Hydra design system */
+
+.hydra-notice {
+  border-left: 3px solid #AE85FA;
+  background: rgba(174, 133, 250, 0.08);
+}
+
+.hydra-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-family: var(--font-monospace);
+}
+
+.hydra-tag-project {
+  background: rgba(174, 133, 250, 0.1);
+  border: 1px solid rgba(174, 133, 250, 0.3);
+  color: #AE85FA;
+}
+
+.hydra-tag-status {
+  background: rgba(62, 224, 140, 0.1);
+  border: 1px solid rgba(62, 224, 140, 0.3);
+  color: #3EE08C;
+}
+
+.hydra-tag-type {
+  background: rgba(72, 155, 225, 0.1);
+  border: 1px solid rgba(72, 155, 225, 0.3);
+  color: #489BE1;
+}
+
+.hydra-tag-integration {
+  background: rgba(191, 122, 240, 0.1);
+  border: 1px solid rgba(191, 122, 240, 0.3);
+  color: #BF7AF0;
+}
+
+.hydra-confidence-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.hydra-confidence-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.hydra-confidence-high { background: #3EE08C; }
+.hydra-confidence-medium { background: #E6C057; }
+.hydra-confidence-low { background: #FF9D94; }
+
+.hydra-relationship {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: rgba(174, 133, 250, 0.05);
+}
+
+.hydra-relationship-type {
+  font-family: var(--font-monospace);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: rgba(174, 133, 250, 0.15);
+  color: #AE85FA;
+}
+
+/* Graph view overlay */
+.hydra-graph-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #0D0814;
+  z-index: 1000;
+}
+
+.hydra-graph-status {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 16px;
+  background: rgba(23, 15, 33, 0.8);
+  border: 1px solid rgba(174, 133, 250, 0.15);
+  font-family: var(--font-monospace);
+  font-size: 0.75rem;
+  color: #80769A;
+}
