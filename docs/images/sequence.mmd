@@ -1,0 +1,29 @@
+sequenceDiagram
+    autonumber
+    participant Agent as Claude / Agent
+    participant MCP as HydraMCP<br/>(stdio, JSON-RPC 2.0)
+    participant Vault as HydraVault<br/>VaultScanner
+    participant Health as HydraHealth<br/>HealthChecker
+    participant Obs as Obsidian vault
+
+    Agent->>MCP: tools/list
+    MCP-->>Agent: 8 declared tools
+
+    Note over Agent,MCP: health_check and search are implemented today
+
+    Agent->>MCP: tools/call health_check
+    MCP->>Vault: scan()
+    Vault->>Obs: read notes, tags, frontmatter
+    Obs-->>Vault: inventory
+    Vault-->>MCP: VaultInventory
+    MCP->>Health: checkAll(inventory)
+    Health-->>MCP: HealthReport
+    MCP-->>Agent: status, summary, per-check results
+
+    Agent->>MCP: tools/call search {query}
+    MCP->>Vault: scan()
+    Vault-->>MCP: VaultInventory
+    MCP-->>Agent: matches by title / tag (max 20)
+
+    Agent->>MCP: tools/call relationships
+    MCP-->>Agent: not_yet_implemented

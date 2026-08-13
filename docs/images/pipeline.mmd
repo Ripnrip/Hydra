@@ -1,0 +1,45 @@
+flowchart LR
+    subgraph SRC["Sources"]
+        A1["Plans<br/>Sessions<br/>Changelogs"]
+        A2["Git history"]
+        A3["Ad-hoc files<br/>drag / paste"]
+    end
+
+    subgraph CORE["HydraCore — pipeline"]
+        B1["Scan"]
+        B2["Classify<br/>ArtifactKind"]
+        B3["Enrich<br/>tags · links · color · authority"]
+        B4["Outbox<br/>SQLite"]
+    end
+
+    subgraph VAULT["HydraVault"]
+        C1["Project<br/>PARA subpaths"]
+        C2["Obsidian vault"]
+    end
+
+    subgraph SURF["Surfaces"]
+        D1["HydraApp<br/>SwiftUI + TCA"]
+        D2["hydra CLI"]
+        D3["HydraMCP<br/>JSON-RPC 2.0"]
+    end
+
+    A1 --> B1
+    A2 --> B1
+    A3 --> B1
+    B1 --> B2 --> B3 --> B4 --> C1 --> C2
+
+    C2 --> D1
+    C2 --> D2
+    C2 --> D3
+
+    B4 -. "health · graph" .-> D1
+
+    classDef src fill:#fdf0d5,stroke:#c1875a,color:#5c3a1e
+    classDef core fill:#e8f0e3,stroke:#6f8f5f,color:#2f4025
+    classDef vault fill:#e4eef5,stroke:#5b87a3,color:#22384a
+    classDef surf fill:#f3e8f2,stroke:#8f6f96,color:#432c47
+
+    class A1,A2,A3 src
+    class B1,B2,B3,B4 core
+    class C1,C2 vault
+    class D1,D2,D3 surf
