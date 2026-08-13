@@ -179,6 +179,45 @@ struct E2EFlowSnapshots {
 
 // MARK: - Full App
 
+@Suite("E2E — Vault Scan")
+@MainActor
+struct E2EScanSnapshots {
+    @Test("Scan results")
+    func scanResults() {
+        snapView(
+            ScrollView { VaultScanResultsView(result: E2ESampleData.scanResult) }
+                                .background(Color.hydraVoid),
+            named: "e2e_scan", width: 800, height: 500
+        )
+    }
+}
+
+@Suite("E2E — Health Check")
+@MainActor
+struct E2EHealthSnapshots {
+    @Test("Health results")
+    func healthResults() {
+        snapView(
+            ScrollView { HealthResultsView(checks: E2ESampleData.healthChecks) }
+                                .background(Color.hydraVoid),
+            named: "e2e_health", width: 800, height: 500
+        )
+    }
+}
+
+@Suite("E2E — Search")
+@MainActor
+struct E2ESearchSnapshots {
+    @Test("Search results")
+    func searchResults() {
+        snapView(
+            ScrollView { SearchResultsView(query: "andromeda", results: E2ESampleData.searchResults) }
+                                .background(Color.hydraVoid),
+            named: "e2e_search", width: 800, height: 500
+        )
+    }
+}
+
 @Suite("Full App Window")
 @MainActor
 struct FullAppSnapshots {
