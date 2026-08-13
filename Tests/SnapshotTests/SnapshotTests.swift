@@ -177,6 +177,73 @@ struct E2EFlowSnapshots {
     }
 }
 
+// MARK: - Dry Run Preview (what WILL be created)
+
+@Suite("Dry Run Preview")
+@MainActor
+struct DryRunPreviewSnapshots {
+
+    @Test("Summary tab")
+    func dryRunSummary() {
+        snapView(DryRunPreviewView(), named: "dryrun_summary", width: 900, height: 600)
+    }
+
+    @Test("Tag assignments")
+    func dryRunTags() {
+        snapView(DryRunPreviewView(preview: .sample), named: "dryrun_tags", width: 900, height: 600)
+    }
+
+    @Test("Relationships")
+    func dryRunRelationships() {
+        snapView(DryRunPreviewView(preview: .sample), named: "dryrun_relationships", width: 900, height: 600)
+    }
+}
+
+// MARK: - Before/After Graph Comparison
+
+@Suite("Before/After Graph")
+@MainActor
+struct BeforeAfterGraphSnapshots {
+
+    @Test("Before hydration (scattered, disconnected)")
+    func graphBefore() {
+        let nodes: [GraphNode] = [
+            GraphNode(id: "a", label: "AI-IDE Setup", position: SIMD2<Float>(200, 150), velocity: .zero, radius: 10, color: GraphNodeKind.session.baseColor, kind: .session),
+            GraphNode(id: "b", label: "Agent Workflow", position: SIMD2<Float>(500, 200), velocity: .zero, radius: 9, color: GraphNodeKind.session.baseColor, kind: .session),
+            GraphNode(id: "c", label: "Brain Cluster", position: SIMD2<Float>(350, 400), velocity: .zero, radius: 8, color: GraphNodeKind.session.baseColor, kind: .session),
+            GraphNode(id: "d", label: "Copilot Setup", position: SIMD2<Float>(700, 350), velocity: .zero, radius: 9, color: GraphNodeKind.session.baseColor, kind: .session),
+            GraphNode(id: "e", label: "Fork Repo", position: SIMD2<Float>(150, 350), velocity: .zero, radius: 7, color: GraphNodeKind.session.baseColor, kind: .session),
+        ]
+        // Before: only 1 weak link — mostly orphans
+        let edges: [GraphEdge] = [
+            GraphEdge(id: "e1", source: "a", target: "b", strength: 0.2, type: .relatesTo),
+        ]
+        snapView(BeforeAfterGraphView(state: .before, nodes: nodes, edges: edges), named: "graph_before", width: 900, height: 600)
+    }
+
+    @Test("After hydration (connected, tagged, linked)")
+    func graphAfter() {
+        let nodes: [GraphNode] = [
+            GraphNode(id: "a", label: "AI-IDE Setup", position: SIMD2<Float>(300, 250), velocity: .zero, radius: 14, color: GraphNodeKind.plan.baseColor, kind: .plan),
+            GraphNode(id: "b", label: "Agent Workflow", position: SIMD2<Float>(500, 300), velocity: .zero, radius: 12, color: GraphNodeKind.plan.baseColor, kind: .plan),
+            GraphNode(id: "c", label: "Hydra Architecture", position: SIMD2<Float>(450, 200), velocity: .zero, radius: 16, color: GraphNodeKind.plan.baseColor, kind: .plan),
+            GraphNode(id: "d", label: "Copilot Setup", position: SIMD2<Float>(600, 180), velocity: .zero, radius: 10, color: GraphNodeKind.decision.baseColor, kind: .decision),
+            GraphNode(id: "e", label: "Fork Repo", position: SIMD2<Float>(200, 350), velocity: .zero, radius: 8, color: GraphNodeKind.session.baseColor, kind: .session),
+            GraphNode(id: "f", label: "Brain Cluster", position: SIMD2<Float>(350, 400), velocity: .zero, radius: 9, color: GraphNodeKind.session.baseColor, kind: .session),
+        ]
+        // After: rich typed connections
+        let edges: [GraphEdge] = [
+            GraphEdge(id: "e1", source: "a", target: "c", strength: 0.9, type: .derivedFrom),
+            GraphEdge(id: "e2", source: "b", target: "a", strength: 0.7, type: .relatesTo),
+            GraphEdge(id: "e3", source: "c", target: "d", strength: 0.6, type: .references),
+            GraphEdge(id: "e4", source: "c", target: "b", strength: 0.8, type: .implements),
+            GraphEdge(id: "e5", source: "e", target: "a", strength: 0.5, type: .references),
+            GraphEdge(id: "e6", source: "f", target: "c", strength: 0.4, type: .relatesTo),
+        ]
+        snapView(BeforeAfterGraphView(state: .after, nodes: nodes, edges: edges), named: "graph_after", width: 900, height: 600)
+    }
+}
+
 // MARK: - Full App
 
 @Suite("E2E — Vault Scan")
