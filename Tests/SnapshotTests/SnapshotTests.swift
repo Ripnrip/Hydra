@@ -298,6 +298,17 @@ struct FullAppSnapshots {
     }
 }
 
+// MARK: - Backfill Config
+
+@Suite("Backfill Config")
+@MainActor
+struct BackfillConfigSnapshots {
+    @Test("Full configuration panel")
+    func backfillConfig() {
+        snapView(BackfillConfigView(), named: "backfill_config", width: 900, height: 600)
+    }
+}
+
 // MARK: - Helpers
 
 func defaultColor(for axis: ColorAxis) -> VaultColor {
