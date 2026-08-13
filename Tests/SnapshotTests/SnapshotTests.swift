@@ -119,6 +119,17 @@ struct HealthPanelSnapshots {
     }
 }
 
+// MARK: - GPU Graph Renderer
+
+@Suite("Relationship Graph")
+@MainActor
+struct GraphSnapshots {
+    @Test("Initial layout")
+    func graphInitial() {
+        snapView(RelationshipGraphView(), named: "graph_initial", width: 900, height: 600)
+    }
+}
+
 // MARK: - Full App
 
 @Suite("Full App Window")
