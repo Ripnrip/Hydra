@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/images/banner-reveal.svg" alt="Hydra — scattered notes converge along threads of light into a glowing knowledge pool beside a hillside library" width="100%">
+<img src="docs/images/banner-reveal.svg" alt="Hydra — scattered fragments dissolve into flowing purple light and crystallize into a connected knowledge graph" width="100%">
 
 # Hydra
 
