@@ -130,6 +130,53 @@ struct GraphSnapshots {
     }
 }
 
+// MARK: - E2E Flow (snapshot-driven UI test)
+
+@Suite("E2E Hydration Flow")
+@MainActor
+struct E2EFlowSnapshots {
+
+    @Test("Step 1: Idle")
+    func flowIdle() {
+        snapView(E2EHydrationFlowView(fixedStep: .idle), named: "e2e_idle", width: 900, height: 600)
+    }
+
+    @Test("Step 2: Scanning")
+    func flowScanning() {
+        snapView(E2EHydrationFlowView(fixedStep: .scanning), named: "e2e_scanning", width: 900, height: 600)
+    }
+
+    @Test("Step 3: Scanned (source files discovered)")
+    func flowScanned() {
+        snapView(E2EHydrationFlowView(fixedStep: .scanned), named: "e2e_scanned", width: 900, height: 600)
+    }
+
+    @Test("Step 4: Classifying")
+    func flowClassifying() {
+        snapView(E2EHydrationFlowView(fixedStep: .classifying), named: "e2e_classifying", width: 900, height: 600)
+    }
+
+    @Test("Step 5: Classified (results with tags)")
+    func flowClassified() {
+        snapView(E2EHydrationFlowView(fixedStep: .classified), named: "e2e_classified", width: 900, height: 600)
+    }
+
+    @Test("Step 6: Review complete")
+    func flowReviewing() {
+        snapView(E2EHydrationFlowView(fixedStep: .reviewing), named: "e2e_reviewing", width: 900, height: 600)
+    }
+
+    @Test("Step 7: Writing to vault")
+    func flowWriting() {
+        snapView(E2EHydrationFlowView(fixedStep: .writing), named: "e2e_writing", width: 900, height: 600)
+    }
+
+    @Test("Step 8: Complete (success summary)")
+    func flowComplete() {
+        snapView(E2EHydrationFlowView(fixedStep: .complete), named: "e2e_complete", width: 900, height: 600)
+    }
+}
+
 // MARK: - Full App
 
 @Suite("Full App Window")
