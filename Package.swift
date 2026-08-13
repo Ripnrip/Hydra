@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "Hydra",
-    platforms: [.macOS(.v15)],
+    platforms: [.macOS(.v15), .iOS(.v18)],
     products: [
         .library(name: "HydraCore", targets: ["HydraCore"]),
         .library(name: "HydraVault", targets: ["HydraVault"]),
