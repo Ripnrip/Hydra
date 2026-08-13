@@ -20,7 +20,7 @@ enum HydrationFlowStep: String, CaseIterable {
 final class HydrationFlowState: ObservableObject {
     @Published var step: HydrationFlowStep = .idle
     @Published var sourcePath: String = "~/.claude/plans"
-    @Published var vaultPath: String = "~/Developer/SecondBrain"
+    @Published var vaultPath: String = "~/Developer/MyVault"
     @Published var discoveredCount: Int = 0
     @Published var classifiedCount: Int = 0
     @Published var tagsGenerated: Int = 0

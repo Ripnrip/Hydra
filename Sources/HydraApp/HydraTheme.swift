@@ -1,11 +1,11 @@
 import SwiftUI
 
 // MARK: - Hydra Design System
-// Adapted from Andromeda's obsidian-space aesthetic.
-// Senpai directive: replace teal with light purple. Everything else follows Andromeda.
+// Obsidian-space aesthetic with light purple accent.
+
 
 extension Color {
-    /// Primary accent — light purple (replaces Andromeda teal)
+    /// Primary accent — light purple
     static let hydraAccent = Color(red: 0.68, green: 0.52, blue: 0.98)  // #AE85FA
     /// Hover / glow — brighter purple
     static let hydraGlow = Color(red: 0.82, green: 0.72, blue: 1.0)    // #D1B8FF
@@ -37,7 +37,7 @@ extension Color {
 // MARK: - Theme
 
 enum HydraTheme {
-    // Corner radius (matches Andromeda: 14pt)
+    // Corner radius
     static let cornerRadius: CGFloat = 14
     static let smallCornerRadius: CGFloat = 8
 

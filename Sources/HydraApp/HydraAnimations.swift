@@ -1,7 +1,7 @@
 import SwiftUI
 
 // MARK: - Motion Tokens
-// Adapted from Andromeda's Motion timing — same curves, purple personality.
+// Motion timing tokens.
 
 enum Motion {
     static let pulse = Animation.easeInOut(duration: 1.6).repeatForever(autoreverses: true)
@@ -233,7 +233,7 @@ struct HydraAnimationGallery: View {
                 Text("Hydra Animations")
                     .font(HydraTheme.display(.largeTitle))
                     .foregroundStyle(Color.hydraInk)
-                Text("Andromeda motion system, retuned to purple")
+                Text("Motion system")
                     .font(HydraTheme.mono(.subheadline))
                     .foregroundStyle(Color.hydraMuted)
 
