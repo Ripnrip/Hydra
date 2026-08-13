@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hydra — Context Hydration Engine</title>
+  <meta name="description" content="Turn scattered sources into a connected, living second brain. GPU-accelerated relationship graphs, intelligent tagging, and a beautiful UI for humans and agents.">
+  <style>
+    :root {
+      --accent: #B388FF;
+      --accent-glow: #D1B8FF;
+      --accent-deep: #7C4DFF;
+      --void: #0D0814;
+      --panel: #170F21;
+      --card: #1F142B;
+      --ink: #E8E0F8;
+      --muted: #80769A;
+      --live: #3EE08C;
+      --partial: #E6C057;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, 'SF Pro Display', system-ui, sans-serif;
+      background: var(--void);
+      color: var(--ink);
+      overflow-x: hidden;
+      line-height: 1.6;
+    }
+    .mono { font-family: 'SF Mono', 'Fira Code', monospace; }
+
+    /* Hero */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      position: relative;
+      background: radial-gradient(ellipse at center, rgba(179,136,255,0.08) 0%, transparent 70%);
+    }
+    .hero-icon {
+      width: 120px; height: 120px;
+      margin-bottom: 32px;
+      filter: drop-shadow(0 0 30px rgba(179,136,255,0.4));
+      animation: breathe 3s ease-in-out infinite;
+    }
+    @keyframes breathe {
+      0%, 100% { transform: scale(1); filter: drop-shadow(0 0 20px rgba(179,136,255,0.3)); }
+      50% { transform: scale(1.05); filter: drop-shadow(0 0 40px rgba(179,136,255,0.5)); }
+    }
+    .hero h1 {
+      font-size: 3.5rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 12px;
+      background: linear-gradient(135deg, var(--ink), var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero p {
+      font-size: 1.25rem;
+      color: var(--muted);
+      max-width: 540px;
+      margin-bottom: 40px;
+    }
+    .cta-group { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 14px 28px;
+      border-radius: 14px;
+      font-weight: 600;
+      font-size: 1.05rem;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: var(--void);
+    }
+    .btn-primary:hover { background: var(--accent-glow); transform: translateY(-2px); }
+    .btn-secondary {
+      border: 1px solid rgba(179,136,255,0.3);
+      color: var(--accent);
+      background: rgba(179,136,255,0.05);
+    }
+    .btn-secondary:hover { background: rgba(179,136,255,0.12); }
+
+    /* Features */
+    .features {
+      padding: 100px 24px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    .features h2 {
+      font-size: 2rem; text-align: center; margin-bottom: 48px;
+      font-weight: 700;
+    }
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+    }
+    .feature {
+      padding: 28px;
+      background: var(--card);
+      border: 1px solid rgba(179,136,255,0.12);
+      border-radius: 14px;
+      transition: border-color 0.2s;
+    }
+    .feature:hover { border-color: rgba(179,136,255,0.3); }
+    .feature-icon { font-size: 2rem; margin-bottom: 12px; display: block; }
+    .feature h3 { font-size: 1.15rem; margin-bottom: 8px; }
+    .feature p { color: var(--muted); font-size: 0.95rem; }
+
+    /* Stats bar */
+    .stats {
+      display: flex; justify-content: center; gap: 48px;
+      padding: 60px 24px;
+      border-top: 1px solid rgba(179,136,255,0.1);
+      border-bottom: 1px solid rgba(179,136,255,0.1);
+    }
+    .stat { text-align: center; }
+    .stat-value { font-size: 2rem; font-weight: 800; color: var(--accent); }
+    .stat-label { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+
+    /* Architecture */
+    .arch {
+      padding: 100px 24px;
+      max-width: 800px;
+      margin: 0 auto;
+      text-align: center;
+    }
+    .arch h2 { font-size: 2rem; margin-bottom: 32px; }
+    .pipeline {
+      font-family: 'SF Mono', monospace;
+      font-size: 0.95rem;
+      color: var(--accent);
+      background: var(--panel);
+      padding: 24px;
+      border-radius: 14px;
+      border: 1px solid rgba(179,136,255,0.15);
+      line-height: 1.8;
+    }
+    .pipeline .arrow { color: var(--muted); }
+
+    /* Footer */
+    footer {
+      text-align: center; padding: 40px;
+      color: var(--muted); font-size: 0.85rem;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+
+    @media (max-width: 640px) {
+      .hero h1 { font-size: 2.5rem; }
+      .stats { flex-wrap: wrap; gap: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <section class="hero">
+    <svg class="hero-icon" viewBox="0 0 120 120" fill="none">
+      <defs>
+        <radialGradient id="dropGrad" cx="50%" cy="40%">
+          <stop offset="0%" stop-color="#D1B8FF"/>
+          <stop offset="60%" stop-color="#B388FF"/>
+          <stop offset="100%" stop-color="#7C4DFF"/>
+        </radialGradient>
+        <filter id="glow">
+          <feGaussianBlur stdDeviation="4" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <path d="M60 10 C60 10, 30 45, 30 70 C30 87, 43 100, 60 100 C77 100, 90 87, 90 70 C90 45, 60 10, 60 10 Z"
+            fill="url(#dropGrad)" filter="url(#glow)"/>
+      <circle cx="50" cy="55" r="3" fill="#E8E0F8" opacity="0.6"/>
+      <circle cx="65" cy="65" r="2.5" fill="#E8E0F8" opacity="0.5"/>
+      <circle cx="55" cy="75" r="2" fill="#E8E0F8" opacity="0.4"/>
+      <line x1="50" y1="55" x2="65" y2="65" stroke="#E8E0F8" stroke-width="0.5" opacity="0.3"/>
+      <line x1="65" y1="65" x2="55" y2="75" stroke="#E8E0F8" stroke-width="0.5" opacity="0.3"/>
+    </svg>
+    <h1>Hydra</h1>
+    <p>Turn scattered sources into a connected, living second brain. GPU-accelerated relationship graphs, intelligent tagging, and a beautiful UI for humans and agents.</p>
+    <div class="cta-group">
+      <a href="#download" class="btn btn-primary">⬇ Download for Mac</a>
+      <a href="https://github.com/Ripnrip/Hydra" class="btn btn-secondary">⌥ View on GitHub</a>
+    </div>
+  </section>
+
+  <section class="stats">
+    <div class="stat"><div class="stat-value mono">100%</div><div class="stat-label">Swift</div></div>
+    <div class="stat"><div class="stat-value mono">3</div><div class="stat-label">Interfaces</div></div>
+    <div class="stat"><div class="stat-value mono">GPU</div><div class="stat-label">Graph Renderer</div></div>
+    <div class="stat"><div class="stat-value mono">MCP</div><div class="stat-label">Agent Ready</div></div>
+  </section>
+
+  <section class="features">
+    <h2>One engine, three faces</h2>
+    <div class="feature-grid">
+      <div class="feature">
+        <span class="feature-icon">💧</span>
+        <h3>Context Hydration</h3>
+        <p>Sources flow in — Claude plans, sessions, changelogs, git history. Hydra classifies, tags, and links them automatically. Watch mode keeps it real-time.</p>
+      </div>
+      <div class="feature">
+        <span class="feature-icon">🧠</span>
+        <h3>Oracle Graph</h3>
+        <p>GPU-accelerated force-directed graph shows how everything connects. Find gaps, trace provenance, discover relationships you didn't know existed.</p>
+      </div>
+      <div class="feature">
+        <span class="feature-icon">🎨</span>
+        <h3>Beautiful UI</h3>
+        <p>Purple-on-obsidian design system with smooth animations. Light and dark mode. Built for humans who care about their tools.</p>
+      </div>
+      <div class="feature">
+        <span class="feature-icon">⌨️</span>
+        <h3>CLI + MCP</h3>
+        <p>Full command-line interface for scripting and CI. MCP server for agent integration. Same engine, any surface.</p>
+      </div>
+      <div class="feature">
+        <span class="feature-icon">🔧</span>
+        <h3>Obsidian Plugin</h3>
+        <p>One unified plugin replacing Smart Connections + Dataview + Colored Tags. Calls the Swift binary for heavy lifting.</p>
+      </div>
+      <div class="feature">
+        <span class="feature-icon">📱</span>
+        <h3>Cross-Platform</h3>
+        <p>macOS, iOS, and CLI — all sharing the same Swift core. Tailscale-aware path resolver connects vaults across machines.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="arch">
+    <h2>The Pipeline</h2>
+    <div class="pipeline">
+      Source <span class="arrow">→</span> Scan <span class="arrow">→</span> Classify <span class="arrow">→</span> Enrich <span class="arrow">→</span> Outbox <span class="arrow">→</span> Project <span class="arrow">→</span> Export<br>
+      <span style="color: var(--muted); font-size: 0.85rem;">(tags, links, color, authority)</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: var(--muted); font-size: 0.85rem;">(Obsidian)</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: var(--muted); font-size: 0.85rem;">(pluggable)</span>
+    </div>
+  </section>
+
+  <section id="download" class="features" style="text-align: center;">
+    <h2>Download</h2>
+    <p style="color: var(--muted); margin-bottom: 32px;">Notarized and Gatekeeper-ready. macOS 15+ (Apple Silicon).</p>
+    <div class="cta-group">
+      <a href="https://github.com/Ripnrip/Hydra/releases" class="btn btn-primary">⬇ Download for Mac</a>
+      <a href="https://github.com/Ripnrip/Hydra" class="btn btn-secondary">⌥ Build from Source</a>
+    </div>
+  </section>
+
+  <footer>
+    <p>Hydra by <a href="https://github.com/Ripnrip">Binary Bros</a> · 100% Swift · MIT License</p>
+    <p style="margin-top: 8px; opacity: 0.5;">Context Hydration Engine — sources → enrich → vault → export</p>
+  </footer>
+</body>
+</html>
