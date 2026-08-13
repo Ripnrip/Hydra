@@ -1,6 +1,18 @@
 import SwiftUI
 import HydraCore
 
+// MARK: - Static Spinner (deterministic for snapshots)
+
+/// A non-animated spinner for snapshot-safe loading states.
+struct HydraStaticSpinner: View {
+    var body: some View {
+        Image(systemName: "circle.dashed")
+            .font(.system(size: 32))
+            .foregroundStyle(Color.hydraAccent)
+            .rotationEffect(.degrees(45))
+    }
+}
+
 // MARK: - E2E Flow State
 
 /// Tracks the hydration pipeline state for snapshot-driven UI testing.
@@ -197,7 +209,7 @@ struct E2EHydrationFlowView: View {
     private var scanningView: some View {
         VStack(spacing: 24) {
             Spacer()
-            ProgressView()
+            HydraStaticSpinner()
                 .controlSize(.large)
                 .tint(Color.hydraAccent)
             Text("Scanning source...")
@@ -252,7 +264,7 @@ struct E2EHydrationFlowView: View {
     private var classifyingView: some View {
         VStack(spacing: 24) {
             Spacer()
-            ProgressView()
+            HydraStaticSpinner()
                 .controlSize(.large)
                 .tint(Color.hydraAccent)
             Text("Classifying + tagging...")
@@ -330,7 +342,7 @@ struct E2EHydrationFlowView: View {
     private var writingView: some View {
         VStack(spacing: 24) {
             Spacer()
-            ProgressView()
+            HydraStaticSpinner()
                 .controlSize(.large)
                 .tint(Color.hydraLive)
             Text("Writing to vault...")
