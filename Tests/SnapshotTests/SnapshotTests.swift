@@ -313,6 +313,17 @@ struct DryRunSnapshots {
     }
 }
 
+// MARK: - Animation Gallery
+
+@Suite("Hydra Animations")
+@MainActor
+struct AnimationGallerySnapshots {
+    @Test("Full gallery")
+    func animationGallery() {
+        snapView(HydraAnimationGallery(), named: "animation_gallery", width: 900, height: 600)
+    }
+}
+
 // MARK: - Helpers
 
 func defaultColor(for axis: ColorAxis) -> VaultColor {
