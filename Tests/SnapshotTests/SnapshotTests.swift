@@ -20,17 +20,19 @@ func snapView<V: View>(_ view: V, named: String, width: CGFloat = 800, height: C
 @MainActor
 func snapViewBoth<V: View>(_ view: V, named: String, width: CGFloat = 800, height: CGFloat = 600) {
     // Dark
-    let darkController = NSHostingController(rootView: view.preferredColorScheme(.dark))
+    let darkController = NSHostingController(rootView: view)
     darkController.view.frame = NSRect(x: 0, y: 0, width: width, height: height)
     darkController.view.needsLayout = true
     darkController.view.layoutSubtreeIfNeeded()
+    darkController.view.appearance = NSAppearance(named: .darkAqua)
     assertSnapshot(of: darkController, as: .image(size: .init(width: width, height: height)), named: "\(named)_dark", timeout: 30)
 
     // Light
-    let lightController = NSHostingController(rootView: view.preferredColorScheme(.light))
+    let lightController = NSHostingController(rootView: view)
     lightController.view.frame = NSRect(x: 0, y: 0, width: width, height: height)
     lightController.view.needsLayout = true
     lightController.view.layoutSubtreeIfNeeded()
+    lightController.view.appearance = NSAppearance(named: .aqua)
     assertSnapshot(of: lightController, as: .image(size: .init(width: width, height: height)), named: "\(named)_light", timeout: 30)
 }
 
