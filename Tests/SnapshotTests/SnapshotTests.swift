@@ -16,6 +16,24 @@ func snapView<V: View>(_ view: V, named: String, width: CGFloat = 800, height: C
     assertSnapshot(of: controller, as: .image(size: .init(width: width, height: height)), named: named, timeout: 30)
 }
 
+/// Captures both light and dark mode snapshots.
+@MainActor
+func snapViewBoth<V: View>(_ view: V, named: String, width: CGFloat = 800, height: CGFloat = 600) {
+    // Dark
+    let darkController = NSHostingController(rootView: view.preferredColorScheme(.dark))
+    darkController.view.frame = NSRect(x: 0, y: 0, width: width, height: height)
+    darkController.view.needsLayout = true
+    darkController.view.layoutSubtreeIfNeeded()
+    assertSnapshot(of: darkController, as: .image(size: .init(width: width, height: height)), named: "\(named)_dark", timeout: 30)
+
+    // Light
+    let lightController = NSHostingController(rootView: view.preferredColorScheme(.light))
+    lightController.view.frame = NSRect(x: 0, y: 0, width: width, height: height)
+    lightController.view.needsLayout = true
+    lightController.view.layoutSubtreeIfNeeded()
+    assertSnapshot(of: lightController, as: .image(size: .init(width: width, height: height)), named: "\(named)_light", timeout: 30)
+}
+
 // MARK: - Component Snapshots
 
 @Suite("Tag Chip")
@@ -25,13 +43,13 @@ struct TagChipSnapshots {
     func tagChipAllAxes() {
         for axis in ColorAxis.allCases {
             let tag = ColorTag(axis: axis, value: "test", color: defaultColor(for: axis))
-            snapView(TagChip(colorTag: tag), named: "\(axis.rawValue)", width: 200, height: 40)
+            snapViewBoth(TagChip(colorTag: tag), named: "\(axis.rawValue)", width: 200, height: 40)
         }
     }
     @Test("Selected state")
     func tagChipSelected() {
         let tag = ColorTag(axis: .project, value: "ai-config", color: .projectWarm)
-        snapView(TagChip(colorTag: tag, isSelected: true), named: "selected", width: 200, height: 40)
+        snapViewBoth(TagChip(colorTag: tag, isSelected: true), named: "selected", width: 200, height: 40)
     }
 }
 
@@ -40,7 +58,7 @@ struct TagChipSnapshots {
 struct ConfidenceMeterSnapshots {
     @Test("All levels", arguments: [0.0, 0.25, 0.5, 0.75, 0.92, 1.0])
     func confidenceMeter(value: Double) {
-        snapView(ConfidenceMeter(value: value), named: "confidence_\(Int(value * 100))", width: 200, height: 30)
+        snapViewBoth(ConfidenceMeter(value: value), named: "confidence_\(Int(value * 100))", width: 200, height: 30)
     }
 }
 
@@ -50,7 +68,7 @@ struct ProvenanceBadgeSnapshots {
     @Test("All authority levels")
     func provenanceBadges() {
         for authority in [Authority.gitReceipt, .controlPlaneLedger, .changelog, .observation, .wikiNote] {
-            snapView(ProvenanceBadge(authority: authority), named: authority.rawValue, width: 200, height: 30)
+            snapViewBoth(ProvenanceBadge(authority: authority), named: authority.rawValue, width: 200, height: 30)
         }
     }
 }
@@ -61,7 +79,7 @@ struct LifecycleBadgeSnapshots {
     @Test("All states")
     func lifecycleBadges() {
         for state in LifecycleState.allCases {
-            snapView(LifecycleBadge(state: state), named: state.rawValue, width: 200, height: 30)
+            snapViewBoth(LifecycleBadge(state: state), named: state.rawValue, width: 200, height: 30)
         }
     }
 }
@@ -72,7 +90,7 @@ struct DeliveryStatePillSnapshots {
     @Test("All delivery states")
     func deliveryPills() {
         for state in DeliveryState.allCases {
-            snapView(DeliveryStatePill(state: state), named: state.rawValue, width: 250, height: 30)
+            snapViewBoth(DeliveryStatePill(state: state), named: state.rawValue, width: 250, height: 30)
         }
     }
 }
@@ -82,13 +100,9 @@ struct DeliveryStatePillSnapshots {
 @Suite("Hydration Panel")
 @MainActor
 struct HydrationPanelSnapshots {
-    @Test("Default light")
-    func hydrationDefault() {
-        snapView(HydrationView(), named: "default_light", width: 900, height: 600)
-    }
-    @Test("Default dark")
-    func hydrationDark() {
-        snapView(HydrationView().preferredColorScheme(.dark), named: "default_dark", width: 900, height: 600)
+    @Test("Light + dark")
+    func hydrationPanel() {
+        snapViewBoth(HydrationView(), named: "hydration", width: 900, height: 600)
     }
 }
 
@@ -97,7 +111,7 @@ struct HydrationPanelSnapshots {
 struct VaultExplorerSnapshots {
     @Test("Empty state")
     func vaultEmpty() {
-        snapView(VaultExplorerView(), named: "vault_empty", width: 900, height: 600)
+        snapViewBoth(VaultExplorerView(), named: "vault_empty", width: 900, height: 600)
     }
 }
 
@@ -106,7 +120,7 @@ struct VaultExplorerSnapshots {
 struct OraclePanelSnapshots {
     @Test("Empty state")
     func oracleEmpty() {
-        snapView(OracleView(), named: "oracle_empty", width: 900, height: 600)
+        snapViewBoth(OracleView(), named: "oracle_empty", width: 900, height: 600)
     }
 }
 
@@ -115,7 +129,7 @@ struct OraclePanelSnapshots {
 struct HealthPanelSnapshots {
     @Test("Empty state")
     func healthEmpty() {
-        snapView(HealthView(), named: "health_empty", width: 900, height: 600)
+        snapViewBoth(HealthView(), named: "health_empty", width: 900, height: 600)
     }
 }
 
@@ -138,42 +152,42 @@ struct E2EFlowSnapshots {
 
     @Test("Step 1: Idle")
     func flowIdle() {
-        snapView(E2EHydrationFlowView(fixedStep: .idle), named: "e2e_idle", width: 900, height: 600)
+        snapViewBoth(E2EHydrationFlowView(fixedStep: .idle), named: "e2e_idle", width: 900, height: 600)
     }
 
     @Test("Step 2: Scanning")
     func flowScanning() {
-        snapView(E2EHydrationFlowView(fixedStep: .scanning), named: "e2e_scanning", width: 900, height: 600)
+        snapViewBoth(E2EHydrationFlowView(fixedStep: .scanning), named: "e2e_scanning", width: 900, height: 600)
     }
 
     @Test("Step 3: Scanned (source files discovered)")
     func flowScanned() {
-        snapView(E2EHydrationFlowView(fixedStep: .scanned), named: "e2e_scanned", width: 900, height: 600)
+        snapViewBoth(E2EHydrationFlowView(fixedStep: .scanned), named: "e2e_scanned", width: 900, height: 600)
     }
 
     @Test("Step 4: Classifying")
     func flowClassifying() {
-        snapView(E2EHydrationFlowView(fixedStep: .classifying), named: "e2e_classifying", width: 900, height: 600)
+        snapViewBoth(E2EHydrationFlowView(fixedStep: .classifying), named: "e2e_classifying", width: 900, height: 600)
     }
 
     @Test("Step 5: Classified (results with tags)")
     func flowClassified() {
-        snapView(E2EHydrationFlowView(fixedStep: .classified), named: "e2e_classified", width: 900, height: 600)
+        snapViewBoth(E2EHydrationFlowView(fixedStep: .classified), named: "e2e_classified", width: 900, height: 600)
     }
 
     @Test("Step 6: Review complete")
     func flowReviewing() {
-        snapView(E2EHydrationFlowView(fixedStep: .reviewing), named: "e2e_reviewing", width: 900, height: 600)
+        snapViewBoth(E2EHydrationFlowView(fixedStep: .reviewing), named: "e2e_reviewing", width: 900, height: 600)
     }
 
     @Test("Step 7: Writing to vault")
     func flowWriting() {
-        snapView(E2EHydrationFlowView(fixedStep: .writing), named: "e2e_writing", width: 900, height: 600)
+        snapViewBoth(E2EHydrationFlowView(fixedStep: .writing), named: "e2e_writing", width: 900, height: 600)
     }
 
     @Test("Step 8: Complete (success summary)")
     func flowComplete() {
-        snapView(E2EHydrationFlowView(fixedStep: .complete), named: "e2e_complete", width: 900, height: 600)
+        snapViewBoth(E2EHydrationFlowView(fixedStep: .complete), named: "e2e_complete", width: 900, height: 600)
     }
 }
 
@@ -282,13 +296,9 @@ struct E2ESearchSnapshots {
 @Suite("Full App Window")
 @MainActor
 struct FullAppSnapshots {
-    @Test("Light mode")
-    func fullAppLight() {
-        snapView(ContentView(), named: "light", width: 1000, height: 650)
-    }
-    @Test("Dark mode")
-    func fullAppDark() {
-        snapView(ContentView().preferredColorScheme(.dark), named: "dark", width: 1000, height: 650)
+    @Test("Light + dark")
+    func fullApp() {
+        snapViewBoth(ContentView(), named: "fullapp", width: 1000, height: 650)
     }
 }
 

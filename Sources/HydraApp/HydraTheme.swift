@@ -1,47 +1,96 @@
 import SwiftUI
 
 // MARK: - Hydra Design System
-// Obsidian-space aesthetic with light purple accent.
+// Adaptive light + dark theme. Purple accent on both.
+// Dark: obsidian void ground. Light: warm lavender paper.
 
+// MARK: - Adaptive Color Tokens
+
+/// All theme colors adapt to light/dark automatically.
+/// Access via the `HydraColors` namespace or the `Color.hydra*` shortcuts.
+enum HydraColors {
+    // Accent colors (same in both modes)
+    static let accent = Color(red: 0.55, green: 0.35, blue: 0.90)   // #8C59E6 (darker for contrast)
+    static let accentLight = Color(red: 0.68, green: 0.52, blue: 0.98) // #AE85FA
+    static let glow = Color(red: 0.82, green: 0.72, blue: 1.0)     // #D1B8FF
+    static let live = Color(red: 0.20, green: 0.78, blue: 0.48)    // #33C76F
+    static let alert = Color(red: 0.90, green: 0.35, blue: 0.30)   // #E6594D
+    static let partial = Color(red: 0.82, green: 0.65, blue: 0.20) // #D1A633
+
+    // Dark mode palette
+    static let inkDark = Color(red: 0.91, green: 0.88, blue: 0.97)    // #E8E0F8
+    static let mutedDark = Color(red: 0.50, green: 0.46, blue: 0.60)  // #80769A
+    static let voidDark = Color(red: 0.05, green: 0.03, blue: 0.08)   // #0D0814
+    static let panelDark = Color(red: 0.09, green: 0.06, blue: 0.13)  // #170F21
+    static let cardDark = Color(red: 0.12, green: 0.08, blue: 0.17)   // #1F142B
+    static let popoverDark = Color(red: 0.10, green: 0.07, blue: 0.15) // #1A1126
+
+    // Light mode palette — warm lavender paper
+    static let inkLight = Color(red: 0.12, green: 0.08, blue: 0.18)   // #1F142E
+    static let mutedLight = Color(red: 0.45, green: 0.40, blue: 0.52) // #736685
+    static let voidLight = Color(red: 0.97, green: 0.96, blue: 0.98)  // #F8F5FB
+    static let panelLight = Color(red: 1.0, green: 0.99, blue: 1.0)   // #FFFDFE
+    static let cardLight = Color(red: 0.95, green: 0.93, blue: 0.97)  // #F2EDF7
+    static let popoverLight = Color(red: 0.99, green: 0.98, blue: 1.0) // #FCFAFE
+}
 
 extension Color {
-    /// Primary accent — light purple
-    static let hydraAccent = Color(red: 0.68, green: 0.52, blue: 0.98)  // #AE85FA
-    /// Hover / glow — brighter purple
-    static let hydraGlow = Color(red: 0.82, green: 0.72, blue: 1.0)    // #D1B8FF
-    /// Healthy / live status — green
-    static let hydraLive = Color(red: 0.24, green: 0.87, blue: 0.55)   // #3EE08C
-    /// Degraded / alert — warm coral
-    static let hydraAlert = Color(red: 1.0, green: 0.62, blue: 0.58)   // #FF9D94
-    /// Warning / partial — amber
-    static let hydraPartial = Color(red: 0.90, green: 0.75, blue: 0.34) // #E6C057
-    /// Primary text (ink) — near-white with cool tint
-    static let hydraInk = Color(red: 0.91, green: 0.88, blue: 0.97)    // #E8E0F8
-    /// Muted / secondary text
-    static let hydraMuted = Color(red: 0.50, green: 0.46, blue: 0.60)  // #80769A
-    /// Void background — deep obsidian with purple tint
-    static let hydraVoid = Color(red: 0.05, green: 0.03, blue: 0.08)   // #0D0814
-    /// Panel surface — one step above void
-    static let hydraPanel = Color(red: 0.09, green: 0.06, blue: 0.13)  // #170F21
-    /// Card surface — two steps above void
-    static let hydraCard = Color(red: 0.12, green: 0.08, blue: 0.17)   // #1F142B
-    /// Popover / floating surface
-    static let hydraPopover = Color(red: 0.10, green: 0.07, blue: 0.15) // #1A1126
+    // Accent (consistent across modes, slightly adjusted for contrast)
+    static let hydraAccent = Color(light: HydraColors.accentLight, dark: HydraColors.accentLight)
+    static let hydraGlow = Color(light: HydraColors.glow, dark: HydraColors.glow)
+    static let hydraLive = Color(light: HydraColors.live, dark: HydraColors.live)
+    static let hydraAlert = Color(light: HydraColors.alert, dark: Color(red: 1.0, green: 0.62, blue: 0.58))
+    static let hydraPartial = Color(light: HydraColors.partial, dark: Color(red: 0.90, green: 0.75, blue: 0.34))
 
-    // Accent-tinted utility colors
-    static let hydraLine = Color.hydraAccent.opacity(0.15)
-    static let hydraSelection = Color.hydraAccent.opacity(0.14)
-    static let hydraHover = Color.hydraAccent.opacity(0.07)
+    // Adaptive text/surface colors
+    static let hydraInk = Color(light: HydraColors.inkLight, dark: HydraColors.inkDark)
+    static let hydraMuted = Color(light: HydraColors.mutedLight, dark: HydraColors.mutedDark)
+    static let hydraVoid = Color(light: HydraColors.voidLight, dark: HydraColors.voidDark)
+    static let hydraPanel = Color(light: HydraColors.panelLight, dark: HydraColors.panelDark)
+    static let hydraCard = Color(light: HydraColors.cardLight, dark: HydraColors.cardDark)
+    static let hydraPopover = Color(light: HydraColors.popoverLight, dark: HydraColors.popoverDark)
+
+    // Utility (accent-tinted, adaptive opacity)
+    static var hydraLine: Color { hydraAccent.opacity(0.15) }
+    static var hydraSelection: Color { hydraAccent.opacity(0.14) }
+    static var hydraHover: Color { hydraAccent.opacity(0.07) }
 }
+
+// MARK: - Color init helper (light/dark bundles)
+
+extension Color {
+    init(light: Color, dark: Color) {
+        #if os(macOS)
+        self = NSColor(name: nil) { appearance in
+            if appearance.bestMatch(from: [.darkAqua, .vibrantDark, .accessibilityHighContrastDarkAqua]) != nil {
+                return NSColor(dark)
+            }
+            return NSColor(light)
+        }.mapToColor()
+        #else
+        self = UIColor { traits in
+            traits.userInterfaceStyle == .dark ? UIColor(dark) : UIColor(light)
+        }.mapToColor()
+        #endif
+    }
+}
+
+#if os(macOS)
+extension NSColor {
+    func mapToColor() -> Color { Color(nsColor: self) }
+}
+#else
+extension UIColor {
+    func mapToColor() -> Color { Color(uiColor: self) }
+}
+#endif
 
 // MARK: - Theme
 
 enum HydraTheme {
-    // Corner radius
     static let cornerRadius: CGFloat = 14
     static let smallCornerRadius: CGFloat = 8
 
-    // Fonts
     static func mono(_ style: Font.TextStyle = .callout, weight: Font.Weight = .regular) -> Font {
         .system(style, design: .monospaced).weight(weight)
     }
@@ -49,16 +98,10 @@ enum HydraTheme {
     static func display(_ style: Font.TextStyle = .largeTitle) -> Font {
         .system(style, design: .serif)
     }
-
-    // Background view modifier — forces dark obsidian ground
-    static func background<V: View>(_ view: V) -> some View {
-        view.background(Color.hydraVoid)
-    }
 }
 
-// MARK: - Panel Container
+// MARK: - Panel Container (adaptive)
 
-/// A card-style panel with the Hydra dark aesthetic.
 struct HydraPanel<Content: View>: View {
     var title: String?
     var icon: String?
@@ -95,9 +138,8 @@ struct HydraPanel<Content: View>: View {
     }
 }
 
-// MARK: - Glow Button
+// MARK: - Glow Button (adaptive)
 
-/// Primary action button with purple glow.
 struct HydraButton: View {
     let title: String
     let icon: String?
@@ -119,7 +161,7 @@ struct HydraButton: View {
                 Text(title)
                     .font(.system(size: 14, weight: .semibold))
             }
-            .foregroundStyle(Color.hydraVoid)
+            .foregroundStyle(.white)
             .padding(.horizontal, 20)
             .padding(.vertical, 10)
             .background(
@@ -136,13 +178,11 @@ struct HydraButton: View {
     }
 }
 
-// MARK: - Status Dot
+// MARK: - Status Dot (adaptive)
 
-/// Colored dot for status indicators — never communicates by color alone.
 struct HydraStatusDot: View {
     let color: Color
     var pulsing: Bool = false
-
     @State private var glow = false
 
     var body: some View {
@@ -159,9 +199,8 @@ struct HydraStatusDot: View {
     }
 }
 
-// MARK: - Tag Chip (Hydra styled)
+// MARK: - Tag Chip (adaptive)
 
-/// Purple-themed tag chip replacing the default macOS styling.
 struct HydraTagChip: View {
     let label: String
     let color: Color
@@ -190,9 +229,8 @@ struct HydraTagChip: View {
     }
 }
 
-// MARK: - Stat Card
+// MARK: - Stat Card (adaptive)
 
-/// Compact metric display for dashboard panels.
 struct HydraStatCard: View {
     let title: String
     let value: String
