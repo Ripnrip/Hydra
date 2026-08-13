@@ -37,7 +37,7 @@ let package = Package(
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
         ]),
         .executableTarget(name: "HydraApp", dependencies: [
-            "HydraCore", "HydraVault", "HydraHealth", "HydraGraph",
+            "HydraCore", "HydraVault", "HydraHealth", "HydraGraph", "HydraGraph",
             .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
         ]),
         .testTarget(name: "HydraCoreTests", dependencies: ["HydraCore"]),

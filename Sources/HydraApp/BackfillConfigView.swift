@@ -285,7 +285,7 @@ struct BackfillConfigView: View {
                     .font(HydraTheme.mono(.caption2, weight: .semibold))
                     .tracking(1.5)
                     .foregroundStyle(Color.hydraMuted)
-                FlowLayout(spacing: 6, lineSpacing: 4) {
+                FlowLayout(spacing: 6) {
                     ForEach(config.excludeTags, id: \.self) { tag in
                         HStack(spacing: 3) {
                             Image(systemName: "xmark.circle.fill")

@@ -298,14 +298,18 @@ struct FullAppSnapshots {
     }
 }
 
-// MARK: - Backfill Config
+// MARK: - Dry Run Preview
 
-@Suite("Backfill Config")
+@Suite("Dry Run Preview")
 @MainActor
-struct BackfillConfigSnapshots {
-    @Test("Full configuration panel")
-    func backfillConfig() {
-        snapView(BackfillConfigView(), named: "backfill_config", width: 900, height: 600)
+struct DryRunSnapshots {
+    @Test("Full dry run — all artifacts")
+    func dryRunFull() {
+        snapView(
+            ScrollView { DryRunPreviewView(artifacts: DryRunSampleData.artifacts, vaultPath: DryRunSampleData.vaultPath) }
+                                .background(Color.hydraVoid),
+            named: "dry_run_preview", width: 800, height: 600
+        )
     }
 }
 
