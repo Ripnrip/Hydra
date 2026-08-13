@@ -66,7 +66,7 @@ struct SourceToggle: Identifiable, Hashable {
         .init(name: "Git History", icon: "arrow.triangle.branch", path: "git log --since", enabled: true, count: 47),
         .init(name: "Changelog", icon: "list.bullet.rectangle.fill", path: "CHANGELOG.md", enabled: true, count: nil),
         .init(name: "claude-mem", icon: "cylinder.split.3x1.fill", path: "~/.claude-mem", enabled: false, count: nil),
-        .init(name: "Obsidian Vault", icon: "book.fill", path: "~/Developer/MyVault", enabled: false, count: 155),
+        .init(name: "Obsidian Vault", icon: "book.fill", path: "~/Documents/MyVault", enabled: false, count: 155),
     ]
 }
 

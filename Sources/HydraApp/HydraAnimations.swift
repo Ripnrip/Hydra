@@ -2,7 +2,7 @@ import SwiftUI
 
 // MARK: - Hydra Motion
 
-/// Animation timing curves adapted from AndromedaUI's Motion enum.
+/// Animation timing curves matching the Hydra design system.
 /// Same timing, same feel — purple instead of teal.
 enum HydraMotion {
     static let pulse   = Animation.easeInOut(duration: 1.2).repeatForever()
@@ -19,7 +19,7 @@ enum HydraMotion {
 // MARK: - Hydra Surface
 
 /// Deep-space void background with a faint purple glow wash.
-/// The AndromedaSurface adapted to purple.
+/// The deep-space surface adapted to purple.
 struct HydraSurface: View {
     var body: some View {
         Color.hydraVoid.overlay(

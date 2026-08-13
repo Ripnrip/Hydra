@@ -51,7 +51,7 @@ public struct VaultNote: Sendable, Identifiable, Equatable {
 // MARK: - PARA Category
 
 /// Maps vault directory structure to PARA categories.
-/// Derived from the SecondBrain vault layout:
+/// Derived from standard Obsidian PARA vault layout:
 /// 00-Inbox, 01-Permanent/{Projects, Areas, Resources, Archives, Concepts, Systems},
 /// 02-Daily, 03-Templates, 04-Assets, 05-Maps of Content, 06-Journal, 07-Sessions
 public enum PARACategory: String, Sendable, CaseIterable, Equatable {

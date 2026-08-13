@@ -5,10 +5,10 @@ import HydraHealth
 
 // MARK: - E2E Demo Views
 
-/// Deterministic sample data from real SecondBrain vault scan (2026-08-13).
+/// Deterministic sample data showing typical vault scan results (2026-08-13).
 /// These mirror the CLI output so snapshots show the actual e2e flow results.
 enum E2ESampleData {
-    static let vaultPath = "~/Developer/SecondBrain"
+    static let vaultPath = "~/Documents/MyVault"
 
     static let scanResult = VaultScanResult(
         noteCount: 331,
@@ -35,11 +35,11 @@ enum E2ESampleData {
     ]
 
     static let searchResults: [E2ESearchResult] = [
-        .init(title: "Andromeda Control Plane", path: "01-Permanent/Systems/Andromeda Control Plane.md", tags: ["andromeda", "anima", "control-plane"]),
+        .init(title: "System Architecture", path: "01-Permanent/Systems/System Architecture.md", tags: ["architecture", "anima", "control-plane"]),
         .init(title: "Session — Swift package hierarchy", path: "07-Sessions/2026-07-21--swift-package-hierarchy--cursor.md", tags: []),
-        .init(title: "Oura IPA lab: ipatool → extract", path: "07-Sessions/2026-07-23--research-sec-oura-ipatool--grok.md", tags: ["andromeda-adjacent", "ios", "ipa"]),
+        .init(title: "Oura IPA lab: ipatool → extract", path: "07-Sessions/2026-07-23--research-sec-oura-ipatool--grok.md", tags: ["architecture-adjacent", "ios", "ipa"]),
         .init(title: "Visible Alpha Residual Wave Closeout", path: "07-Sessions/2026-07-17--anima-residual-wave-closeout--cursor.md", tags: ["closeout", "visible-alpha"]),
-        .init(title: "Visible Alpha — Capability Curtain", path: "07-Sessions/2026-07-15--anima-visible-alpha--cursor.md", tags: ["andromeda", "anima", "mcp"]),
+        .init(title: "Visible Alpha — Capability Curtain", path: "07-Sessions/2026-07-15--anima-visible-alpha--cursor.md", tags: ["architecture", "anima", "mcp"]),
     ]
 }
 

@@ -151,7 +151,7 @@ struct SidebarItem: View {
 // MARK: - Hydration Tab
 
 struct HydrationView: View {
-    @State private var vaultPath = "~/Developer/MyVault"
+    @State private var vaultPath = "~/Documents/MyVault"
     @State private var sourcePath = "~/.claude/plans"
     @State private var isHydrating = false
     @State private var dryRun = true
