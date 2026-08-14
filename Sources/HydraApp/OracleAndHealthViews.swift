@@ -75,6 +75,16 @@ struct OracleView: View {
 
     @ViewBuilder
     private func oracleContent(_ inv: VaultInventory) -> some View {
+        // Visual relationship graph
+        VaultGraphView(inventory: inv)
+            .frame(height: 380)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .strokeBorder(Color.hydraAccent.opacity(0.15), lineWidth: 1)
+            )
+            .padding(.horizontal, 24)
+
         // Stats row
         HStack(spacing: 12) {
             HydraStatCard(title: "Notes", value: "\(inv.noteCount)", icon: "doc.text.fill")
