@@ -281,3 +281,120 @@ struct RealRAGQuerySnapshots {
         print("✓ REAL RAG QUERY — \(result.semanticHits.count) semantic, \(result.graphHits.count) graph hits")
     }
 }
+
+// MARK: - LLM Config + Graph Highlight Render
+
+@Suite("LLM + Highlights")
+@MainActor
+struct LLMHighlightSnapshots {
+    @Test("Oracle with LLM config + retrieval-highlighted graph")
+    func llmAndHighlights() async throws {
+        let vaultPath = NSHomeDirectory() + "/Developer/SecondBrain"
+        guard FileManager.default.fileExists(atPath: vaultPath + "/.obsidian") else {
+            Issue.record("vault missing")
+            return
+        }
+        let scanner = VaultScanner(vaultRoot: vaultPath)
+        let inventory = try await scanner.scan()
+
+        // Run a real RAG query to get highlight sets
+        let index = LocalSemanticIndex()
+        await index.build(from: inventory.notes.map { note in
+            (id: note.title.lowercased(),
+             title: note.title.isEmpty ? note.relativePath : note.title,
+             tags: note.tags,
+             content: note.frontmatter.values.joined(separator: " "))
+        })
+        let links = inventory.notes.flatMap { note -> [NoteLink] in
+            note.wikilinks.map { NoteLink(source: note.title.lowercased(), target: $0.lowercased()) }
+        }
+        let query = HybridRAGQuery()
+        let result = await query.run(query: "andromeda memory control plane", index: index, links: links, titleFor: { $0 })
+
+        let semanticIDs = Set(result.semanticHits.map(\.id))
+        let graphIDs = Set(result.graphHits.map(\.id))
+
+        // Render: answer panel + highlighted graph + LLM config
+        let view = ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                // Header with LLM sparkles active
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Oracle").font(HydraTheme.display(.largeTitle)).foregroundStyle(Color.hydraInk)
+                        Text("Ask your vault — semantic search + graph expansion")
+                            .font(HydraTheme.mono(.subheadline)).foregroundStyle(Color.hydraMuted)
+                    }
+                    Spacer()
+                    Image(systemName: "sparkles")
+                        .foregroundStyle(Color.hydraAccent)
+                        .font(.system(size: 16))
+                }
+                .padding(.horizontal, 24).padding(.top, 24)
+
+                // Search bar with query
+                HStack(spacing: 10) {
+                    Image(systemName: "brain.head.profile").foregroundStyle(Color.hydraAccent)
+                    Text("andromeda memory control plane")
+                        .font(HydraTheme.mono(.callout)).foregroundStyle(Color.hydraInk)
+                    Spacer()
+                    Image(systemName: "arrow.right.circle.fill")
+                        .foregroundStyle(Color.hydraAccent).font(.title3)
+                }
+                .padding(12)
+                .background(Color.hydraPanel, in: RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.hydraAccent.opacity(0.2), lineWidth: 1))
+                .padding(.horizontal, 24)
+
+                // Highlighted graph (semantic + graph IDs from real query)
+                VaultGraphView(inventory: inventory, highlightedSemanticIDs: semanticIDs, highlightedGraphIDs: graphIDs)
+                    .frame(height: 320)
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.hydraAccent.opacity(0.15), lineWidth: 1))
+                    .padding(.horizontal, 24)
+
+                // Offline answer
+                HydraPanel(title: "Answer", icon: "sparkles") {
+                    Text(result.answer)
+                        .font(HydraTheme.mono(.callout))
+                        .foregroundStyle(Color.hydraInk)
+                        .lineSpacing(4)
+                }
+                .padding(.horizontal, 24)
+
+                // LLM config panel (open)
+                HydraPanel(title: "LLM Settings (optional)", icon: "gearshape") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Add an OpenAI-compatible endpoint for AI-reasoned answers.")
+                            .font(HydraTheme.mono(.caption)).foregroundStyle(Color.hydraMuted)
+                        Text("BASE URL").font(.system(size: 8, design: .monospaced).weight(.semibold)).tracking(1.5).foregroundStyle(Color.hydraMuted)
+                        Text("https://api.openai.com/v1").font(HydraTheme.mono(.callout)).foregroundStyle(Color.hydraInk)
+                            .padding(8).frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.hydraVoid, in: RoundedRectangle(cornerRadius: 6))
+                            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color.hydraLine, lineWidth: 1))
+                        Text("MODEL").font(.system(size: 8, design: .monospaced).weight(.semibold)).tracking(1.5).foregroundStyle(Color.hydraMuted)
+                        Text("gpt-4o-mini").font(HydraTheme.mono(.callout)).foregroundStyle(Color.hydraInk)
+                            .padding(8).frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.hydraVoid, in: RoundedRectangle(cornerRadius: 6))
+                            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color.hydraLine, lineWidth: 1))
+                    }
+                }
+                .padding(.horizontal, 24)
+            }
+            .padding(.bottom, 32)
+        }
+        .background(Color.hydraVoid)
+
+        let hosting = NSHostingView(rootView: view.frame(width: 1000, height: 1000))
+        hosting.frame = NSRect(x: 0, y: 0, width: 1000, height: 1000)
+        hosting.layoutSubtreeIfNeeded()
+
+        guard let rep = hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds) else { return }
+        hosting.cacheDisplay(in: hosting.bounds, to: rep)
+        let image = NSImage()
+        image.addRepresentation(rep)
+        guard let tiff = image.tiffRepresentation, let bitmap = NSBitmapImageRep(data: tiff),
+              let png = bitmap.representation(using: .png, properties: [:]) else { return }
+        try png.write(to: URL(fileURLWithPath: "/tmp/hydra-llm-highlights.png"))
+        print("✓ LLM + HIGHLIGHTS — \(semanticIDs.count) semantic, \(graphIDs.count) graph highlighted")
+    }
+}
