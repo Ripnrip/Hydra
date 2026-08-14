@@ -10,7 +10,7 @@ struct HydraAppMain: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(demoOracle: ProcessInfo.processInfo.environment["HYDRA_DEMO"] != nil)
                 .frame(minWidth: 1000, minHeight: 650)
                 .background(Color.hydraVoid)
         }
@@ -33,10 +33,13 @@ enum AppTab: String, CaseIterable {
 // MARK: - Root View
 
 struct ContentView: View {
-    @State private var selectedTab: AppTab = {
-        // Demo mode: --demo-oracle launches into the Oracle tab
-        CommandLine.arguments.contains("--demo-oracle") ? .oracle : .hydrate
-    }()
+    @State private var selectedTab: AppTab
+    private let forceOracle: Bool
+
+    init(demoOracle: Bool = false) {
+        _selectedTab = State(initialValue: demoOracle ? .oracle : .hydrate)
+        self.forceOracle = demoOracle
+    }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -105,6 +108,11 @@ struct ContentView: View {
                 }
             }
             .background(Color.hydraVoid)
+        }
+        .onAppear {
+            if ProcessInfo.processInfo.environment["HYDRA_DEMO"] != nil {
+                selectedTab = .oracle
+            }
         }
     }
 }

@@ -13,22 +13,23 @@ struct VaultGraphView: View {
     var highlightedSemanticIDs: Set<String> = []
     var highlightedGraphIDs: Set<String> = []
     @State private var selectedNode: String?
-    @State private var layoutCache: [String: NodeLayout] = [:]
-    @State private var cachedSize: CGSize = .zero
+    @State private var settledLayout: [String: NodeLayout] = [:]
+    @State private var settledSize: CGSize = .zero
 
     private var hasHighlights: Bool { !highlightedSemanticIDs.isEmpty || !highlightedGraphIDs.isEmpty }
 
-    private func cachedLayout(for size: CGSize) -> [String: NodeLayout] {
-        if cachedSize != size || layoutCache.isEmpty {
-            layoutCache = layout(in: size)
-            cachedSize = size
+    /// Compute layout ONCE per size via onAppear — never mutate @State inside body.
+    private func layoutIfNeeded(_ size: CGSize) -> [String: NodeLayout] {
+        if settledSize == size, !settledLayout.isEmpty {
+            return settledLayout
         }
-        return layoutCache
+        // Return the computed value WITHOUT caching (pure read)
+        return layout(in: size)
     }
 
     var body: some View {
         GeometryReader { geo in
-            let computed = cachedLayout(for: geo.size)
+            let computed = layoutIfNeeded(geo.size)
 
             ZStack {
                 Color(red: 0.04, green: 0.02, blue: 0.07)

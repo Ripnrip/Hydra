@@ -9,7 +9,7 @@ struct OracleView: View {
     @State private var inventory: VaultInventory?
     @State private var isLoading = false
     @State private var searchText = ""
-    @State private var vaultPath = CommandLine.arguments.contains("--demo-oracle")
+    @State private var vaultPath = ProcessInfo.processInfo.environment["HYDRA_DEMO"] != nil
         ? NSHomeDirectory() + "/Developer/SecondBrain"
         : "~/Documents/MyVault"
     @State private var showVaultPicker = false
@@ -129,7 +129,7 @@ struct OracleView: View {
         .task {
             await scanVault()
             // Demo mode: auto-run a query after scan completes
-            if CommandLine.arguments.contains("--demo-oracle") {
+            if ProcessInfo.processInfo.environment["HYDRA_DEMO"] != nil {
                 searchText = "andromeda memory control plane"
                 try? await Task.sleep(for: .seconds(1))
                 await runQuery()
