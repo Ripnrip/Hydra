@@ -11,6 +11,9 @@ struct OracleView: View {
     @State private var searchText = ""
     @State private var vaultPath = "~/Documents/MyVault"
     @State private var showVaultPicker = false
+    @State private var ragResult: HybridRAGQuery.Result?
+    @State private var semanticIndex: LocalSemanticIndex?
+    @State private var isQuerying = false
 
     var body: some View {
         ScrollView {
@@ -21,7 +24,7 @@ struct OracleView: View {
                         Text("Oracle")
                             .font(HydraTheme.display(.largeTitle))
                             .foregroundStyle(Color.hydraInk)
-                        Text("Explore connections, gaps, and relationships")
+                        Text("Ask your vault — semantic search + graph expansion")
                             .font(HydraTheme.mono(.subheadline))
                             .foregroundStyle(Color.hydraMuted)
                     }
@@ -32,6 +35,42 @@ struct OracleView: View {
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 24)
+
+                // Ask-your-vault search bar
+                HStack(spacing: 10) {
+                    Image(systemName: "brain.head.profile")
+                        .foregroundStyle(Color.hydraAccent)
+                    TextField("Ask your vault...", text: $searchText)
+                        .textFieldStyle(.plain)
+                        .font(HydraTheme.mono(.callout))
+                        .foregroundStyle(Color.hydraInk)
+                        .onSubmit { Task { await runQuery() } }
+                    if isQuerying {
+                        HydraStaticSpinner()
+                    } else if !searchText.isEmpty {
+                        Button {
+                            Task { await runQuery() }
+                        } label: {
+                            Image(systemName: "arrow.right.circle.fill")
+                                .foregroundStyle(Color.hydraAccent)
+                                .font(.title3)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(12)
+                .background(Color.hydraPanel, in: RoundedRectangle(cornerRadius: 12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .strokeBorder(Color.hydraAccent.opacity(0.2), lineWidth: 1)
+                )
+                .padding(.horizontal, 24)
+
+                // RAG answer
+                if let result = ragResult {
+                    ragAnswerView(result)
+                        .padding(.horizontal, 24)
+                }
 
                 if isLoading {
                     VStack(spacing: 16) {
@@ -253,10 +292,90 @@ struct OracleView: View {
         let scanner = VaultScanner(vaultRoot: vaultPath.expandingTildeInPath)
         do {
             inventory = try await scanner.scan()
+            // Build semantic index from the scan
+            let index = LocalSemanticIndex()
+            await index.build(from: inventory!.notes.map { note in
+                (id: note.title.lowercased(),
+                 title: note.title.isEmpty ? note.relativePath : note.title,
+                 tags: note.tags,
+                 content: note.frontmatter.values.joined(separator: " "))
+            })
+            semanticIndex = index
         } catch {
             isLoading = false
         }
         isLoading = false
+    }
+
+    // MARK: - Hybrid RAG query
+
+    private func runQuery() async {
+        guard !searchText.isEmpty, let index = semanticIndex, let inv = inventory else { return }
+        isQuerying = true
+        defer { isQuerying = false }
+
+        // Build links from wikilinks
+        let links = inv.notes.flatMap { note -> [NoteLink] in
+            note.wikilinks.map { NoteLink(source: note.title.lowercased(), target: $0.lowercased()) }
+        }
+
+        let titleMap = Dictionary(
+            inv.notes.map { ($0.title.lowercased(), $0.title.isEmpty ? $0.relativePath : $0.title) },
+            uniquingKeysWith: { a, _ in a }
+        )
+
+        let query = HybridRAGQuery()
+        ragResult = await query.run(
+            query: searchText,
+            index: index,
+            links: links,
+            titleFor: { titleMap[$0] ?? $0 }
+        )
+    }
+
+    // MARK: - RAG answer rendering
+
+    @ViewBuilder
+    private func ragAnswerView(_ result: HybridRAGQuery.Result) -> some View {
+        HydraPanel(title: "Answer", icon: "sparkles") {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(result.answer)
+                    .font(HydraTheme.mono(.callout))
+                    .foregroundStyle(Color.hydraInk)
+                    .lineSpacing(4)
+
+                // Retrieved note pills
+                if !result.allNoteIDs.isEmpty {
+                    Text("RETRIEVED (\(result.allNoteIDs.count))")
+                        .font(.system(size: 8, design: .monospaced).weight(.semibold))
+                        .tracking(1.5)
+                        .foregroundStyle(Color.hydraMuted)
+
+                    // Show semantic hits as purple pills, graph hits as muted
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(result.semanticHits, id: \.id) { hit in
+                                Text(hit.title)
+                                    .font(.system(size: 9, design: .monospaced))
+                                    .foregroundStyle(Color.hydraAccent)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(Color.hydraAccent.opacity(0.1), in: Capsule())
+                                    .overlay(Capsule().strokeBorder(Color.hydraAccent.opacity(0.3), lineWidth: 0.5))
+                            }
+                            ForEach(result.graphHits.prefix(8), id: \.id) { hit in
+                                Text(hit.title)
+                                    .font(.system(size: 9, design: .monospaced))
+                                    .foregroundStyle(Color.hydraMuted)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(Color.hydraMuted.opacity(0.08), in: Capsule())
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
