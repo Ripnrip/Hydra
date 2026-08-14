@@ -151,6 +151,7 @@ struct SidebarItem: View {
 // MARK: - Hydration Tab
 
 struct HydrationView: View {
+    @State private var sourcePath = "~/.claude/plans"
     @State private var vaultPath = "~/Documents/MyVault"
     @State private var isHydrating = false
     @State private var dryRun = true
@@ -176,30 +177,7 @@ struct HydrationView: View {
                 .padding(.horizontal, 24)
                 .padding(.top, 24)
 
-<<<<<<< HEAD
-                // Stats row
-                HStack(spacing: 12) {
-                    HydraStatCard(title: "Sources", value: "9", icon: "square.stack.3d.up.fill", accentColor: .hydraAccent)
-                    HydraStatCard(title: "Tags", value: "685", icon: "tag.fill", accentColor: .hydraLive)
-                    HydraStatCard(title: "Pending", value: "0", icon: "tray.fill", accentColor: .hydraPartial)
-                    HydraStatCard(title: "Health", value: "98%", icon: "checkmark.shield.fill", accentColor: .hydraLive)
-                }
-                .padding(.horizontal, 24)
-
-                // Smart source + destination detection
-                SmartSourcePicker(
-                    sourcePath: $sourcePath,
-                    vaultPath: $vaultPath,
-                    detectedKind: .constant(nil)
-                )
-                .padding(.horizontal, 24)
-
-                // Vault config (auto-filled by detector)
-                HydraPanel(title: "Destination Vault", icon: "archivebox.fill") {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HydraFieldRow(label: "Root", value: $vaultPath)
-=======
-                // Smart folder picker
+                // Smart folder picker — detect sources from a single chosen folder
                 HydraPanel(title: "Vault Folder", icon: "folder.badge.gearshape") {
                     VStack(alignment: .leading, spacing: 12) {
                         // Folder display + browse button
@@ -261,7 +239,6 @@ struct HydrationView: View {
                         }
 
                         // Dry run toggle
->>>>>>> 980d72652735129fd4d72c63f076f9c2d0c759cb
                         HStack {
                             Toggle("", isOn: $dryRun)
                                 .toggleStyle(HydraToggleStyle())
