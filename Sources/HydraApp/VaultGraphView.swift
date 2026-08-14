@@ -4,197 +4,263 @@ import HydraVault
 
 // MARK: - Vault Graph View
 
-/// Visual force-directed relationship graph rendered directly in the Oracle tab.
-/// Nodes = vault notes, edges = wikilinks. Purple obsidian theme.
+/// Visual relationship graph rendered in pixel space.
+/// Nodes = vault notes, edges = wikilinks. Deterministic layout (no random).
+/// Selected node's connections highlight; everything else dims.
 struct VaultGraphView: View {
     let inventory: VaultInventory
-    @State private var nodePositions: [String: CGPoint] = [:]
     @State private var selectedNode: String?
-    @State private var computed = false
+    @State private var layoutCache: [String: NodeLayout] = [:]
+    @State private var cachedSize: CGSize = .zero
+
+    private func cachedLayout(for size: CGSize) -> [String: NodeLayout] {
+        if cachedSize != size || layoutCache.isEmpty {
+            layoutCache = layout(in: size)
+            cachedSize = size
+        }
+        return layoutCache
+    }
 
     var body: some View {
         GeometryReader { geo in
+            let computed = cachedLayout(for: geo.size)
+
             ZStack {
-                Color.hydraVoid
+                Color(red: 0.04, green: 0.02, blue: 0.07)
 
                 // Edges
-                ForEach(edgeSegments(in: geo.size), id: \.id) { edge in
+                ForEach(edges(in: computed), id: \.id) { edge in
                     Path { p in
                         p.move(to: edge.from)
                         p.addLine(to: edge.to)
                     }
                     .stroke(
-                        Color.hydraAccent.opacity(edge.isHighlight ? 0.5 : 0.12),
-                        lineWidth: edge.isHighlight ? 1.5 : 0.5
+                        Color.hydraAccent.opacity(edge.highlight ? 0.55 : 0.14),
+                        lineWidth: edge.highlight ? 1.5 : 0.5
                     )
                 }
 
                 // Nodes
-                ForEach(topNodes, id: \.id) { note in
-                    if let pos = nodePositions[note.title.lowercased()] {
-                        nodeView(note, at: pos)
+                ForEach(Array(computed.keys.sorted()), id: \.self) { key in
+                    if let item = computed[key] {
+                        nodeLabel(item, isSelected: selectedNode == key)
+                            .position(item.point)
                     }
-                }
-
-                // Stats overlay
-                VStack {
-                    Spacer()
-                    HStack {
-                        Text("\(topNodes.count) nodes · \(edgeCount) edges")
-                            .font(.system(size: 10, design: .monospaced))
-                            .foregroundStyle(Color.hydraMuted)
-                            .padding(8)
-                            .background(Color.hydraPanel.opacity(0.8), in: RoundedRectangle(cornerRadius: 6))
-                        Spacer()
-                    }
-                    .padding(12)
                 }
             }
+            .clipped()
         }
-        .onAppear { computeLayout() }
+        .overlay(alignment: .bottomLeading) {
+            Text("\(topNodes.count) nodes · \(edgeCount) edges")
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(Color.hydraMuted)
+                .padding(8)
+                .background(Color.hydraPanel.opacity(0.9), in: RoundedRectangle(cornerRadius: 6))
+                .padding(10)
+        }
     }
 
-    // MARK: - Node rendering
+    // MARK: - Node view
 
     @ViewBuilder
-    private func nodeView(_ note: VaultNote, at pos: CGPoint) -> some View {
-        let isSelected = selectedNode == note.title.lowercased()
-        let connections = inventory.adjacencyList[note.title.lowercased()]?.count ?? 0
-        let radius = nodeRadius(for: connections)
+    private func nodeLabel(_ item: NodeLayout, isSelected: Bool) -> some View {
+        let connections = item.connections
+        let dimmed = selectedNode != nil && !isSelected && !item.isConnectedToSelected
 
         ZStack {
-            // Glow for selected
             if isSelected {
                 Circle()
-                    .fill(Color.hydraAccent.opacity(0.15))
-                    .frame(width: radius * 4, height: radius * 4)
+                    .fill(Color.hydraAccent.opacity(0.18))
+                    .frame(width: item.radius * 4.5, height: item.radius * 4.5)
             }
 
             Circle()
-                .fill(color(for: note))
-                .frame(width: radius * 2, height: radius * 2)
+                .fill(item.color)
+                .frame(width: item.radius * 2, height: item.radius * 2)
                 .overlay(
                     Circle().strokeBorder(
-                        isSelected ? Color.hydraAccent : Color.hydraVoid,
-                        lineWidth: isSelected ? 2 : 1
+                        isSelected ? Color.hydraAccent : Color(red: 0.04, green: 0.02, blue: 0.07),
+                        lineWidth: isSelected ? 2.5 : 1
                     )
                 )
+                .opacity(dimmed ? 0.25 : 1)
 
-            // Label (always for selected/large, on hover otherwise)
-            if isSelected || connections > 2 {
-                Text(note.title)
-                    .font(.system(size: 9, design: .monospaced))
-                    .foregroundStyle(Color.hydraInk)
-                    .lineLimit(1)
-                    .offset(y: radius + 10)
-            }
+            Text(item.title)
+                .font(.system(size: isSelected ? 11 : 9, design: .monospaced))
+                .foregroundStyle(Color.hydraInk.opacity(dimmed ? 0.3 : 0.9))
+                .lineLimit(1)
+                .fixedSize()
+                .offset(y: item.radius + 9)
+                .opacity(isSelected || connections >= 2 || selectedNode == nil ? 1 : 0)
         }
-        .position(pos)
         .onTapGesture {
             withAnimation(.easeInOut(duration: 0.2)) {
-                selectedNode = selectedNode == note.title.lowercased() ? nil : note.title.lowercased()
+                selectedNode = selectedNode == item.key ? nil : item.key
             }
         }
     }
 
-    // MARK: - Layout computation (deterministic circular with jitter)
+    // MARK: - Layout (deterministic, pixel space)
 
-    private func computeLayout() {
-        guard !computed else { return }
-        computed = true
-
-        let nodes = topNodes
-        var positions: [String: CGPoint] = [:]
-
-        // Group by connectivity — most connected in center
-        let sorted = nodes.sorted { a, b in
-            (inventory.adjacencyList[a.title.lowercased()]?.count ?? 0) >
-            (inventory.adjacencyList[b.title.lowercased()]?.count ?? 0)
-        }
-
-        let center = CGPoint(x: 0.5, y: 0.5)
-        for (i, note) in sorted.enumerated() {
-            let connections = inventory.adjacencyList[note.title.lowercased()]?.count ?? 0
-            let angle = Double(i) / Double(sorted.count) * 2 * .pi
-            let dist = connections > 2 ? 0.15 : connections > 0 ? 0.3 : 0.42
-            let jitter = connections == 0 ? 0.08 : 0.02
-
-            let x = center.x + cos(angle) * (dist + Double.random(in: -jitter...jitter))
-            let y = center.y + sin(angle) * (dist + Double.random(in: -jitter...jitter))
-
-            positions[note.title.lowercased()] = CGPoint(x: x, y: y)
-        }
-        nodePositions = positions
+    struct NodeLayout {
+        let key: String
+        let title: String
+        let point: CGPoint
+        let radius: CGFloat
+        let color: Color
+        let connections: Int
+        let isConnectedToSelected: Bool
     }
 
-    // MARK: - Edge computation
+    private func layout(in size: CGSize) -> [String: NodeLayout] {
+        let nodes = topNodes
+        guard !nodes.isEmpty, size.width > 10 else { return [:] }
 
-    private struct GraphEdgeSegment: Identifiable {
+        // Sort: most connected first → placed closest to center
+        let ranked = nodes.map { note -> (VaultNote, Int) in
+            (note, inventory.adjacencyList[note.title.lowercased()]?.count ?? 0)
+        }
+        .sorted { $0.1 > $1.1 }
+
+        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+        let maxRadius = min(size.width, size.height) / 2 - 50
+        let selected = selectedNode
+        var result: [String: NodeLayout] = [:]
+
+        // Connected nodes: concentric rings by degree. Orphans: outer ring.
+        let connected = ranked.filter { $0.1 > 0 }
+        let orphans = ranked.filter { $0.1 == 0 }
+
+        func place(_ entries: [(VaultNote, Int)], baseRadius: CGFloat, ringSpread: CGFloat) {
+            guard !entries.isEmpty else { return }
+            let n = entries.count
+            for (i, entry) in entries.enumerated() {
+                let (note, connections) = entry
+                let key = note.title.lowercased()
+                let angle = (Double(i) / Double(n)) * 2 * .pi - .pi / 2
+                // Inner (more connected) → tighter ring
+                let ringOffset = ringSpread * CGFloat(min(connections, 8)) / 8.0
+                let r = max(baseRadius - ringOffset, 30)
+                let point = CGPoint(
+                    x: center.x + cos(angle) * r,
+                    y: center.y + sin(angle) * r * 0.85  // slight ellipse
+                )
+                let isLinkedToSelected: Bool
+                if let sel = selected {
+                    isLinkedToSelected = inventory.adjacencyList[sel]?.contains(key) ?? false
+                        || inventory.adjacencyList[key]?.contains(sel) ?? false
+                } else {
+                    isLinkedToSelected = false
+                }
+                result[key] = NodeLayout(
+                    key: key,
+                    title: note.title.isEmpty ? "untitled" : note.title,
+                    point: point,
+                    radius: radius(for: connections),
+                    color: color(for: note),
+                    connections: connections,
+                    isConnectedToSelected: isLinkedToSelected
+                )
+            }
+        }
+
+        // Connected nodes occupy inner space; orphans on the rim
+        if !connected.isEmpty && !orphans.isEmpty {
+            let split = maxRadius * 0.62
+            place(connected, baseRadius: split, ringSpread: split * 0.5)
+            place(orphans, baseRadius: maxRadius, ringSpread: maxRadius * 0.1)
+        } else {
+            place(ranked, baseRadius: maxRadius * 0.8, ringSpread: maxRadius * 0.45)
+        }
+
+        return result
+    }
+
+    // MARK: - Edges
+
+    private struct EdgeSegment: Identifiable {
         let id: String
         let from: CGPoint
         let to: CGPoint
-        let isHighlight: Bool
+        let highlight: Bool
     }
 
-    private func edgeSegments(in size: CGSize) -> [GraphEdgeSegment] {
-        var segments: [GraphEdgeSegment] = []
-        let selected = selectedNode
+    private func edges(in layout: [String: NodeLayout]) -> [EdgeSegment] {
+        layoutCompactEdges(layout, highlightKey: selectedNode)
+    }
+
+    private func layoutCompactEdges(_ layout: [String: NodeLayout], highlightKey: String?) -> [EdgeSegment] {
+        var segments: [EdgeSegment] = []
+        var seen = Set<String>()
 
         for note in topNodes {
             let fromKey = note.title.lowercased()
-            guard let from = nodePositions[fromKey] else { continue }
+            guard let fromNode = layout[fromKey] else { continue }
 
             for target in note.wikilinks {
                 let toKey = target.lowercased()
-                guard let to = nodePositions[toKey] else { continue }
+                guard let toNode = layout[toKey] else { continue }
 
-                let isHighlight = selected != nil &&
-                    (fromKey == selected || toKey == selected)
+                let edgeID = fromKey < toKey ? "\(fromKey)|\(toKey)" : "\(toKey)|\(fromKey)"
+                guard !seen.contains(edgeID) else { continue }
+                seen.insert(edgeID)
 
-                segments.append(GraphEdgeSegment(
-                    id: "\(fromKey)→\(toKey)",
-                    from: CGPoint(x: from.x * size.width, y: from.y * size.height),
-                    to: CGPoint(x: to.x * size.width, y: to.y * size.height),
-                    isHighlight: isHighlight
+                let highlight = highlightKey != nil &&
+                    (fromKey == highlightKey || toKey == highlightKey)
+
+                segments.append(EdgeSegment(
+                    id: edgeID,
+                    from: fromNode.point,
+                    to: toNode.point,
+                    highlight: highlight
                 ))
             }
         }
         return segments
     }
 
-    // MARK: - Node selection (top 40 by connectivity + recency)
+    // MARK: - Selection
 
     private var topNodes: [VaultNote] {
-        let sorted = inventory.notes.sorted { a, b in
-            let aLinks = inventory.adjacencyList[a.title.lowercased()]?.count ?? 0
-            let bLinks = inventory.adjacencyList[b.title.lowercased()]?.count ?? 0
-            if aLinks != bLinks { return aLinks > bLinks }
-            return a.modifiedDate > b.modifiedDate
-        }
-        return Array(sorted.prefix(40))
+        inventory.notes
+            .map { note in
+                (note, inventory.adjacencyList[note.title.lowercased()]?.count ?? 0)
+            }
+            .sorted { a, b in
+                if a.1 != b.1 { return a.1 > b.1 }
+                return a.0.modifiedDate > b.0.modifiedDate
+            }
+            .prefix(36)
+            .map(\.0)
     }
 
     private var edgeCount: Int {
-        topNodes.reduce(0) { $0 + $1.wikilinks.count }
+        topNodes.reduce(0) { sum, note in
+            sum + note.wikilinks.filter { link in
+                topNodes.contains { $0.title.lowercased() == link.lowercased() }
+            }.count
+        }
     }
 
-    private func nodeRadius(for connections: Int) -> CGFloat {
+    private func radius(for connections: Int) -> CGFloat {
         switch connections {
-        case 0...1: 4
-        case 2...4: 6
-        case 5...9: 8
-        default: 10
+        case 0...1: 5
+        case 2...3: 7
+        case 4...6: 9
+        case 7...10: 11
+        default: 13
         }
     }
 
     private func color(for note: VaultNote) -> Color {
         switch note.paraCategory {
-        case .session:  Color.hydraAccent.opacity(0.7)
+        case .session:  Color(red: 0.70, green: 0.53, blue: 1.0)
         case .system:   Color.hydraAccent
-        case .project:  Color(red: 0.88, green: 0.53, blue: 0.28)
-        case .concept:  Color(red: 0.90, green: 0.75, blue: 0.34)
-        case .journal, .daily: Color(red: 0.47, green: 0.47, blue: 0.56)
-        default:        Color.hydraMuted
+        case .project:  Color(red: 0.92, green: 0.58, blue: 0.35)
+        case .concept:  Color(red: 0.93, green: 0.78, blue: 0.40)
+        case .journal, .daily: Color(red: 0.55, green: 0.52, blue: 0.66)
+        case .resource: Color(red: 0.45, green: 0.78, blue: 0.62)
+        default:        Color(red: 0.45, green: 0.40, blue: 0.55)
         }
     }
 }
