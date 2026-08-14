@@ -21,7 +21,10 @@ enum AppTab: String, CaseIterable {
 // MARK: - Root View
 
 struct ContentView: View {
-    @State private var selectedTab: AppTab = .hydrate
+    @State private var selectedTab: AppTab = {
+        // Demo mode: --demo-oracle launches into the Oracle tab
+        CommandLine.arguments.contains("--demo-oracle") ? .oracle : .hydrate
+    }()
 
     var body: some View {
         HStack(spacing: 0) {
