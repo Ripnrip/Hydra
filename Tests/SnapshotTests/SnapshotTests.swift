@@ -4,6 +4,7 @@ import SwiftUI
 import AppKit
 import HydraCore
 import HydraVault
+import HydraHealth
 @testable import HydraApp
 
 /// Wraps a SwiftUI view in NSHostingController for snapshot testing.
@@ -190,6 +191,177 @@ struct E2EFlowSnapshots {
     @Test("Step 8: Complete (success summary)")
     func flowComplete() {
         snapViewBoth(E2EHydrationFlowView(fixedStep: .complete), named: "e2e_complete", width: 900, height: 600)
+    }
+}
+
+// MARK: - Functional Tab Snapshots (with real data)
+
+@Suite("Functional — Oracle with Data")
+@MainActor
+struct OracleDataSnapshots {
+    @Test("Oracle populated")
+    func oracleWithData() {
+        // Create sample inventory with real-looking data
+        var notes: [VaultNote] = []
+        let sampleData: [(String, String, [String], [String], PARACategory)] = [
+            ("System Architecture", "01-Permanent/Systems/System Architecture.md", ["system", "architecture", "design"], ["Package Dependencies", "Memory Stack"], .system),
+            ("Package Dependencies", "01-Permanent/Systems/Package Dependencies.md", ["swift", "dependencies", "spm"], ["System Architecture"], .system),
+            ("Session — Hydra Pipeline", "07-Sessions/2026-08-13--hydra-pipeline.md", ["hydra", "session", "pipeline"], ["System Architecture", "Multibrain"], .session),
+            ("Multibrain Pipeline", "01-Permanent/Systems/Multibrain.md", ["multibrain", "pipeline", "nightly"], ["Memory Stack"], .system),
+            ("Memory Stack", "01-Permanent/Systems/Memory Stack.md", ["memory", "anima", "claude-mem"], [], .system),
+            ("Tailscale Fleet", "01-Permanent/Systems/Tailscale Fleet.md", ["tailscale", "network", "fleet"], [], .system),
+            ("Vault Health Report", "01-Permanent/Resources/Vault Health.md", ["health", "report", "obsidian"], [], .resource),
+        ]
+        for (title, path, tags, links, cat) in sampleData {
+            notes.append(VaultNote(
+                relativePath: path, title: title, tags: tags, wikilinks: links,
+                paraCategory: cat, modifiedDate: Date().addingTimeInterval(TimeInterval(-Int.random(in: 0...86400*7))),
+                orphaned: links.isEmpty
+            ))
+        }
+        let inv = VaultInventory(vaultRoot: "~/Documents/MyVault", notes: notes, scannedAt: Date())
+        snapViewBoth(
+            OracleViewWithData(inventory: inv),
+            named: "oracle_data", width: 900, height: 600
+        )
+    }
+}
+
+@Suite("Functional — Health with Data")
+@MainActor
+struct HealthDataSnapshots {
+    @Test("Health populated")
+    func healthWithData() {
+        let report = HealthReport(
+            vaultRoot: "~/Documents/MyVault",
+            checks: [
+                HealthCheck(name: "Vault Staleness", status: .healthy, message: "Latest entry was 1 day ago", affectedCount: 0),
+                HealthCheck(name: "Missing Frontmatter", status: .warning, message: "12 notes missing frontmatter", affectedCount: 12),
+                HealthCheck(name: "Orphaned Notes", status: .warning, message: "3 of 7 notes are orphaned", affectedCount: 3),
+                HealthCheck(name: "Broken Wikilinks", status: .healthy, message: "All wikilinks resolve", affectedCount: 0),
+                HealthCheck(name: "Tag Consistency", status: .healthy, message: "No duplicate variants", affectedCount: 0),
+                HealthCheck(name: "Inbox Backlog", status: .healthy, message: "0 notes in inbox", affectedCount: 0),
+                HealthCheck(name: "Digest Integrity", status: .healthy, message: "All digests present", affectedCount: 0),
+            ]
+        )
+        snapViewBoth(
+            HealthViewWithData(report: report),
+            named: "health_data", width: 900, height: 600
+        )
+    }
+}
+
+// MARK: - Data-injected view wrappers (for snapshot testing)
+
+struct OracleViewWithData: View {
+    let inventory: VaultInventory
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Oracle").font(HydraTheme.display(.largeTitle)).foregroundStyle(Color.hydraInk)
+                        Text("Explore connections, gaps, and relationships").font(HydraTheme.mono(.subheadline)).foregroundStyle(Color.hydraMuted)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 24).padding(.top, 24)
+
+                HStack(spacing: 12) {
+                    HydraStatCard(title: "Notes", value: "\(inventory.noteCount)", icon: "doc.text.fill")
+                    HydraStatCard(title: "Tags", value: "\(inventory.tagFrequency.count)", icon: "tag.fill", accentColor: .hydraLive)
+                    HydraStatCard(title: "Orphans", value: "\(inventory.orphanedNotes.count)", icon: "questionmark.circle.fill", accentColor: .hydraAlert ?? .red)
+                    HydraStatCard(title: "Broken Links", value: "\(inventory.brokenWikilinks.count)", icon: "link.badge.plus", accentColor: .hydraPartial)
+                }
+                .padding(.horizontal, 24)
+
+                HydraPanel(title: "Top Tags", icon: "tag.fill") {
+                    VStack(spacing: 6) {
+                        ForEach(inventory.tagFrequency.prefix(10), id: \.tag) { item in
+                            HStack(spacing: 10) {
+                                Text("#\(item.tag)").font(HydraTheme.mono(.caption)).foregroundStyle(Color.hydraAccent)
+                                Spacer()
+                                Text("\(item.count)").font(HydraTheme.mono(.caption2, weight: .bold)).foregroundStyle(Color.hydraMuted)
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 24)
+
+                if !inventory.orphanedNotes.isEmpty {
+                    HydraPanel(title: "Orphaned Notes (\(inventory.orphanedNotes.count))", icon: "questionmark.circle.fill") {
+                        VStack(spacing: 6) {
+                            ForEach(inventory.orphanedNotes.prefix(5)) { note in
+                                HStack(spacing: 10) {
+                                    Image(systemName: "doc.text").foregroundStyle(.red.opacity(0.7)).font(.system(size: 11))
+                                    Text(note.title.isEmpty ? note.relativePath : note.title).font(HydraTheme.mono(.caption)).foregroundStyle(Color.hydraInk).lineLimit(1)
+                                    Spacer()
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 24)
+                }
+            }
+            .padding(.bottom, 32)
+        }
+        .background(Color.hydraVoid)
+    }
+}
+
+struct HealthViewWithData: View {
+    let report: HealthReport
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Vault Health").font(HydraTheme.display(.largeTitle)).foregroundStyle(Color.hydraInk)
+                        Text("Diagnostics and maintenance").font(HydraTheme.mono(.subheadline)).foregroundStyle(Color.hydraMuted)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 24).padding(.top, 24)
+
+                HStack(spacing: 12) {
+                    HydraStatCard(title: "Healthy", value: "\(report.checks.filter { $0.status == HydraHealth.HealthStatus.healthy }.count)", icon: "checkmark.circle.fill", accentColor: .hydraLive)
+                    HydraStatCard(title: "Warnings", value: "\(report.checks.filter { $0.status == HydraHealth.HealthStatus.warning }.count)", icon: "exclamationmark.triangle.fill", accentColor: .hydraPartial)
+                    HydraStatCard(title: "Critical", value: "\(report.checks.filter { $0.status == HydraHealth.HealthStatus.critical }.count)", icon: "xmark.octagon.fill", accentColor: .red)
+                }
+                .padding(.horizontal, 24)
+
+                HydraPanel(title: "Checks", icon: "stethoscope") {
+                    VStack(spacing: 12) {
+                        ForEach(report.checks) { check in
+                            HStack(spacing: 12) {
+                                Image(systemName: check.status == HydraHealth.HealthStatus.healthy ? "checkmark.circle.fill" : check.status == HydraHealth.HealthStatus.warning ? "exclamationmark.triangle.fill" : "xmark.octagon.fill")
+                                    .foregroundStyle(check.status == HydraHealth.HealthStatus.healthy ? Color.hydraLive : check.status == HydraHealth.HealthStatus.warning ? Color.hydraPartial : .red)
+                                    .font(.system(size: 14))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(check.name).font(HydraTheme.mono(.callout, weight: .semibold)).foregroundStyle(Color.hydraInk)
+                                    Text(check.message).font(HydraTheme.mono(.caption)).foregroundStyle(Color.hydraMuted)
+                                }
+                                Spacer()
+                                if check.affectedCount > 0 {
+                                    Text("\(check.affectedCount)")
+                                        .font(HydraTheme.mono(.callout, weight: .bold))
+                                        .foregroundStyle(check.status == HydraHealth.HealthStatus.warning ? Color.hydraPartial : .red)
+                                        .padding(.horizontal, 10).padding(.vertical, 4)
+                                        .background(Capsule().fill((check.status == HydraHealth.HealthStatus.warning ? Color.hydraPartial : Color.red).opacity(0.1)))
+                                } else {
+                                    Image(systemName: "checkmark").foregroundStyle(Color.hydraLive).font(.system(size: 14))
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 24)
+            }
+            .padding(.bottom, 32)
+        }
+        .background(Color.hydraVoid)
     }
 }
 
