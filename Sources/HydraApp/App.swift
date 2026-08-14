@@ -152,10 +152,11 @@ struct SidebarItem: View {
 
 struct HydrationView: View {
     @State private var vaultPath = "~/Documents/MyVault"
-    @State private var sourcePath = "~/.claude/plans"
     @State private var isHydrating = false
     @State private var dryRun = true
-    @State private var sourceKind: SourceKind = .claudePlans
+    @State private var smartConfig: SmartVaultConfig?
+    @State private var isDetecting = false
+    @State private var showFolderPicker = false
 
     var body: some View {
         ScrollView {
@@ -166,18 +167,16 @@ struct HydrationView: View {
                         Text("Context Hydration")
                             .font(HydraTheme.display(.largeTitle))
                             .foregroundStyle(Color.hydraInk)
-                        Text("Sources → enrich → vault → export")
+                        Text("Pick a folder — we detect the rest")
                             .font(HydraTheme.mono(.subheadline))
                             .foregroundStyle(Color.hydraMuted)
-                            .tracking(0.5)
                     }
                     Spacer()
-                    HydraStatCard(title: "Vault Notes", value: "168", icon: "doc.text.fill")
-                        .frame(width: 140)
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 24)
 
+<<<<<<< HEAD
                 // Stats row
                 HStack(spacing: 12) {
                     HydraStatCard(title: "Sources", value: "9", icon: "square.stack.3d.up.fill", accentColor: .hydraAccent)
@@ -199,6 +198,70 @@ struct HydrationView: View {
                 HydraPanel(title: "Destination Vault", icon: "archivebox.fill") {
                     VStack(alignment: .leading, spacing: 12) {
                         HydraFieldRow(label: "Root", value: $vaultPath)
+=======
+                // Smart folder picker
+                HydraPanel(title: "Vault Folder", icon: "folder.badge.gearshape") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        // Folder display + browse button
+                        HStack {
+                            Image(systemName: "folder.fill")
+                                .foregroundStyle(Color.hydraAccent)
+                            Text(smartConfig?.detectedVault ?? vaultPath)
+                                .font(HydraTheme.mono(.callout))
+                                .foregroundStyle(Color.hydraInk)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Spacer()
+                            Button("Choose...") { showFolderPicker = true }
+                                .buttonStyle(.bordered)
+                                .tint(Color.hydraAccent)
+                        }
+
+                        // Detection results
+                        if isDetecting {
+                            HStack(spacing: 8) {
+                                HydraStaticSpinner()
+                                Text("Detecting sources...")
+                                    .font(HydraTheme.mono(.caption))
+                                    .foregroundStyle(Color.hydraMuted)
+                            }
+                        } else if let config = smartConfig {
+                            // What we found
+                            VStack(alignment: .leading, spacing: 6) {
+                                Label(config.summary, systemImage: "checkmark.shield.fill")
+                                    .font(HydraTheme.mono(.caption))
+                                    .foregroundStyle(Color.hydraLive)
+
+                                if !config.detectedSources.isEmpty {
+                                    Text("SOURCES FOUND")
+                                        .font(.system(size: 8, design: .monospaced).weight(.semibold))
+                                        .tracking(1.5)
+                                        .foregroundStyle(Color.hydraMuted)
+                                        .padding(.top, 4)
+
+                                    ForEach(config.detectedSources) { source in
+                                        HStack(spacing: 8) {
+                                            Image(systemName: iconName(for: source.kind))
+                                                .foregroundStyle(Color.hydraAccent)
+                                                .font(.system(size: 10))
+                                            Text(source.label)
+                                                .font(HydraTheme.mono(.caption))
+                                                .foregroundStyle(Color.hydraInk)
+                                            Spacer()
+                                            Text(source.path)
+                                                .font(.system(size: 8, design: .monospaced))
+                                                .foregroundStyle(Color.hydraMuted)
+                                                .lineLimit(1)
+                                                .truncationMode(.middle)
+                                        }
+                                        .padding(.vertical, 2)
+                                    }
+                                }
+                            }
+                        }
+
+                        // Dry run toggle
+>>>>>>> 980d72652735129fd4d72c63f076f9c2d0c759cb
                         HStack {
                             Toggle("", isOn: $dryRun)
                                 .toggleStyle(HydraToggleStyle())
@@ -212,12 +275,11 @@ struct HydrationView: View {
                 }
                 .padding(.horizontal, 24)
 
-                // Export
-                HydraPanel(title: "Export Destinations", icon: "arrow.up.forward.app.fill") {
+                // Export (simplified — Obsidian is default when vault detected)
+                HydraPanel(title: "Export", icon: "arrow.up.forward.app.fill") {
                     VStack(alignment: .leading, spacing: 8) {
-                        HydraExportRow(icon: "book.fill", label: "Obsidian Vault", enabled: true)
+                        HydraExportRow(icon: "book.fill", label: "Obsidian Vault", enabled: smartConfig?.isObsidianVault == true)
                         HydraExportRow(icon: "link.circle.fill", label: "JSON-LD Graph", enabled: false)
-                        HydraExportRow(icon: "network.fill", label: "API Push", enabled: false)
                     }
                 }
                 .padding(.horizontal, 24)
@@ -228,13 +290,51 @@ struct HydrationView: View {
                     HydraButton("Hydrate", icon: "drop.fill") {
                         isHydrating = true
                     }
-                    .disabled(isHydrating)
+                    .disabled(isHydrating || smartConfig == nil)
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 32)
             }
         }
         .background(Color.hydraVoid)
+        .fileImporter(
+            isPresented: $showFolderPicker,
+            allowedContentTypes: [.folder],
+            allowsMultipleSelection: false
+        ) { result in
+            if case .success(let urls) = result, let url = urls.first {
+                Task { await detectFolder(url.path) }
+            }
+        }
+        .task {
+            if smartConfig == nil {
+                await detectFolder(vaultPath)
+            }
+        }
+    }
+
+    private func detectFolder(_ path: String) async {
+        isDetecting = true
+        let detector = VaultDetector()
+        smartConfig = await detector.detect(at: path)
+        if let vault = smartConfig?.detectedVault {
+            vaultPath = vault
+        }
+        isDetecting = false
+    }
+
+    private func iconName(for kind: SourceKind) -> String {
+        switch kind {
+        case .claudePlans: "doc.text.magnifyingglass"
+        case .claudeSessions: "bubble.left.and.bubble.right"
+        case .codexSessions: "terminal"
+        case .gitRepo: "square.stack.3d.up"
+        case .changelog: "list.bullet.rectangle"
+        case .claudeMem: "brain"
+        case .obsidianVault: "book"
+        case .adHocFile: "doc"
+        case .apiStream: "antenna.radiowaves.left.and.right"
+        }
     }
 }
 
