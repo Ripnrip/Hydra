@@ -135,3 +135,149 @@ extension NSView {
         return image
     }
 }
+
+// MARK: - Real RAG Query Render (Berserker)
+
+@Suite("Real RAG Query")
+@MainActor
+struct RealRAGQuerySnapshots {
+    @Test("Oracle answer from real vault query")
+    func realRAGQuery() async throws {
+        let vaultPath = NSHomeDirectory() + "/Developer/SecondBrain"
+        guard FileManager.default.fileExists(atPath: vaultPath + "/.obsidian") else {
+            Issue.record("SecondBrain vault not present")
+            return
+        }
+        let scanner = VaultScanner(vaultRoot: vaultPath)
+        let inventory = try await scanner.scan()
+
+        // Build semantic index from real vault
+        let index = LocalSemanticIndex()
+        await index.build(from: inventory.notes.map { note in
+            (id: note.title.lowercased(),
+             title: note.title.isEmpty ? note.relativePath : note.title,
+             tags: note.tags,
+             content: note.frontmatter.values.joined(separator: " "))
+        })
+
+        // Build links from real wikilinks
+        let links = inventory.notes.flatMap { note -> [NoteLink] in
+            note.wikilinks.map { NoteLink(source: note.title.lowercased(), target: $0.lowercased()) }
+        }
+        let titleMap = Dictionary(
+            inventory.notes.map { ($0.title.lowercased(), $0.title.isEmpty ? $0.relativePath : $0.title) },
+            uniquingKeysWith: { a, _ in a }
+        )
+
+        // Run a real query
+        let query = HybridRAGQuery()
+        let result = await query.run(
+            query: "andromeda memory control plane",
+            index: index,
+            links: links,
+            titleFor: { titleMap[$0] ?? $0 }
+        )
+
+        // Render the answer view
+        let answerView = ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Oracle").font(HydraTheme.display(.largeTitle)).foregroundStyle(Color.hydraInk)
+                        Text("Ask your vault — semantic search + graph expansion")
+                            .font(HydraTheme.mono(.subheadline)).foregroundStyle(Color.hydraMuted)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 24).padding(.top, 24)
+
+                // Search bar with query
+                HStack(spacing: 10) {
+                    Image(systemName: "brain.head.profile").foregroundStyle(Color.hydraAccent)
+                    Text("andromeda memory control plane")
+                        .font(HydraTheme.mono(.callout))
+                        .foregroundStyle(Color.hydraInk)
+                    Spacer()
+                }
+                .padding(12)
+                .background(Color.hydraPanel, in: RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.hydraAccent.opacity(0.2), lineWidth: 1))
+                .padding(.horizontal, 24)
+
+                // RAG answer
+                HydraPanel(title: "Answer", icon: "sparkles") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(result.answer)
+                            .font(HydraTheme.mono(.callout))
+                            .foregroundStyle(Color.hydraInk)
+                            .lineSpacing(4)
+
+                        if !result.semanticHits.isEmpty {
+                            Text("SEMANTIC MATCHES (\(result.semanticHits.count))")
+                                .font(.system(size: 8, design: .monospaced).weight(.semibold))
+                                .tracking(1.5)
+                                .foregroundStyle(Color.hydraMuted)
+                            ForEach(result.semanticHits.prefix(5), id: \.id) { hit in
+                                HStack(spacing: 8) {
+                                    Circle().fill(Color.hydraAccent).frame(width: 5, height: 5)
+                                    Text(hit.title).font(HydraTheme.mono(.caption)).foregroundStyle(Color.hydraInk)
+                                    Spacer()
+                                    Text("\(Int(hit.score * 100))%")
+                                        .font(HydraTheme.mono(.caption2, weight: .bold))
+                                        .foregroundStyle(Color.hydraAccent)
+                                }
+                            }
+                        }
+
+                        if !result.graphHits.isEmpty {
+                            Text("RELATED VIA GRAPH (\(result.graphHits.count))")
+                                .font(.system(size: 8, design: .monospaced).weight(.semibold))
+                                .tracking(1.5)
+                                .foregroundStyle(Color.hydraMuted)
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 6) {
+                                    ForEach(result.graphHits.prefix(10), id: \.id) { hit in
+                                        Text(hit.title)
+                                            .font(.system(size: 9, design: .monospaced))
+                                            .foregroundStyle(Color.hydraMuted)
+                                            .padding(.horizontal, 8).padding(.vertical, 3)
+                                            .background(Color.hydraMuted.opacity(0.08), in: Capsule())
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 24)
+
+                // Graph from real vault
+                VaultGraphView(inventory: inventory)
+                    .frame(height: 300)
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.hydraAccent.opacity(0.15), lineWidth: 1))
+                    .padding(.horizontal, 24)
+            }
+            .padding(.bottom, 32)
+        }
+        .background(Color.hydraVoid)
+
+        let hosting = NSHostingView(rootView: answerView.frame(width: 1000, height: 900))
+        hosting.frame = NSRect(x: 0, y: 0, width: 1000, height: 900)
+        hosting.layoutSubtreeIfNeeded()
+
+        guard let rep = hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds) else {
+            Issue.record("no rep")
+            return
+        }
+        hosting.cacheDisplay(in: hosting.bounds, to: rep)
+        let image = NSImage()
+        image.addRepresentation(rep)
+        guard let tiff = image.tiffRepresentation, let bitmap = NSBitmapImageRep(data: tiff),
+              let png = bitmap.representation(using: .png, properties: [:]) else {
+            Issue.record("png fail")
+            return
+        }
+        try png.write(to: URL(fileURLWithPath: "/tmp/hydra-real-rag-query.png"))
+        print("✓ REAL RAG QUERY — \(result.semanticHits.count) semantic, \(result.graphHits.count) graph hits")
+    }
+}
