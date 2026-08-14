@@ -1,16 +1,28 @@
 import SwiftUI
+import AppKit
 import HydraCore
 import HydraVault
 import HydraHealth
 
 @main
 struct HydraAppMain: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .frame(minWidth: 1000, minHeight: 650)
                 .background(Color.hydraVoid)
         }
+    }
+}
+
+/// Ensures the app activates as a regular foreground app with Dock presence.
+/// SwiftPM executables default to .accessory (no window focus) without this.
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
     }
 }
 
