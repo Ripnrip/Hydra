@@ -92,3 +92,46 @@ struct RealVaultSnapshots {
         return bitmap.representation(using: .png, properties: [:]) ?? Data()
     }
 }
+
+// MARK: - Real Graph (Berserker) — renders VaultGraphView from the real vault
+
+@Suite("Real Graph Render")
+@MainActor
+struct RealGraphRenderSnapshots {
+    @Test("VaultGraphView — real vault relationships")
+    func realGraphBerserker() async throws {
+        let vaultPath = NSHomeDirectory() + "/Developer/SecondBrain"
+        guard FileManager.default.fileExists(atPath: vaultPath + "/.obsidian") else {
+            Issue.record("SecondBrain vault not present")
+            return
+        }
+        let scanner = VaultScanner(vaultRoot: vaultPath)
+        let inventory = try await scanner.scan()
+
+        let controller = NSHostingController(rootView: VaultGraphView(inventory: inventory).frame(width: 1000, height: 600))
+        controller.view.frame = NSRect(x: 0, y: 0, width: 1000, height: 600)
+        controller.view.layoutSubtreeIfNeeded()
+
+        guard let image = controller.view.bitmapImage() else {
+            Issue.record("Failed to render image")
+            return
+        }
+        guard let tiff = image.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff),
+              let png = rep.representation(using: .png, properties: [:]) else {
+            Issue.record("Failed to convert to PNG")
+            return
+        }
+        try png.write(to: URL(fileURLWithPath: "/tmp/hydra-real-graph.png"))
+        print("✓ REAL GRAPH — \(inventory.noteCount) notes rendered")
+    }
+}
+
+extension NSView {
+    func bitmapImage() -> NSImage? {
+        guard let rep = bitmapImageRepForCachingDisplay(in: bounds) else { return nil }
+        cacheDisplay(in: bounds, to: rep)
+        let image = NSImage()
+        image.addRepresentation(rep)
+        return image
+    }
+}
