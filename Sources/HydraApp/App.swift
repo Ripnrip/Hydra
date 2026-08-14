@@ -187,17 +187,16 @@ struct HydrationView: View {
                 }
                 .padding(.horizontal, 24)
 
-                // Source config
-                HydraPanel(title: "Source", icon: "square.and.arrow.down.fill") {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HydraFieldRow(label: "Path", value: $sourcePath)
-                        HydraFieldRow(label: "Kind", picker: true, sourceKind: $sourceKind)
-                    }
-                }
+                // Smart source + destination detection
+                SmartSourcePicker(
+                    sourcePath: $sourcePath,
+                    vaultPath: $vaultPath,
+                    detectedKind: .constant(nil)
+                )
                 .padding(.horizontal, 24)
 
-                // Vault config
-                HydraPanel(title: "Vault", icon: "archivebox.fill") {
+                // Vault config (auto-filled by detector)
+                HydraPanel(title: "Destination Vault", icon: "archivebox.fill") {
                     VStack(alignment: .leading, spacing: 12) {
                         HydraFieldRow(label: "Root", value: $vaultPath)
                         HStack {

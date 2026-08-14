@@ -75,6 +75,13 @@ struct OracleView: View {
 
     @ViewBuilder
     private func oracleContent(_ inv: VaultInventory) -> some View {
+        // Relationship graph — the Oracle's signature view
+        RelationshipGraphView(nodes: graphNodes(from: inv), edges: graphEdges(from: inv))
+            .frame(height: 360)
+            .clipShape(RoundedRectangle(cornerRadius: HydraTheme.cornerRadius))
+            .overlay(RoundedRectangle(cornerRadius: HydraTheme.cornerRadius).strokeBorder(Color.hydraLine, lineWidth: 1))
+            .padding(.horizontal, 24)
+
         // Stats row
         HStack(spacing: 12) {
             HydraStatCard(title: "Notes", value: "\(inv.noteCount)", icon: "doc.text.fill")
@@ -164,6 +171,81 @@ struct OracleView: View {
         else if tag.contains("status") { .hydraLive }
         else if tag.contains("integration") { Color(red: 0.75, green: 0.55, blue: 0.95) }
         else { .hydraMuted }
+    }
+
+    // Convert vault notes → graph nodes
+    private func graphNodes(from inv: VaultInventory) -> [GraphNode] {
+        // Top 30 most-connected notes + top tags as hub nodes
+        let connectedNotes = inv.notes
+            .sorted { $0.wikilinks.count > $1.wikilinks.count }
+            .prefix(24)
+
+        var nodes: [GraphNode] = connectedNotes.enumerated().map { idx, note in
+            GraphNode(
+                id: note.id.uuidString,
+                label: note.title.isEmpty ? note.relativePath : note.title,
+                position: SIMD2<Float>(
+                    Float(100 + (idx % 6) * 120 + ((idx * 37) % 40 - 20)),
+                    Float(80 + (idx / 6) * 100 + ((idx * 23) % 30 - 15))
+                ),
+                velocity: .zero,
+                radius: Float(6 + min(note.wikilinks.count, 12)),
+                color: GraphNodeKind.note.baseColor,
+                kind: .note
+            )
+        }
+
+        // Tag hubs
+        for (i, tagItem) in inv.tagFrequency.prefix(6).enumerated() {
+            nodes.append(GraphNode(
+                id: "tag-\(tagItem.tag)",
+                label: "#\(tagItem.tag)",
+                position: SIMD2<Float>(Float(200 + i * 130), Float(420 + ((i * 37) % 40 - 20))),
+                velocity: .zero,
+                radius: Float(8 + min(tagItem.count / 10, 8)),
+                color: tagColor(tagItem.tag) != .hydraMuted
+                    ? SIMD4<Float>(0.68, 0.52, 0.98, 1.0)
+                    : GraphNodeKind.note.baseColor,
+                kind: .note
+            ))
+        }
+
+        return nodes
+    }
+
+    // Convert wikilinks → graph edges
+    private func graphEdges(from inv: VaultInventory) -> [GraphEdge] {
+        var edges: [GraphEdge] = []
+        let titleToId = Dictionary(
+            inv.notes.map { ($0.title, $0.id.uuidString) },
+            uniquingKeysWith: { first, _ in first }
+        )
+
+        for note in inv.notes.prefix(24) {
+            for link in note.wikilinks.prefix(5) {
+                if let targetId = titleToId[link] {
+                    edges.append(GraphEdge(
+                        id: "\(note.id.uuidString)-\(link)",
+                        source: note.id.uuidString,
+                        target: targetId,
+                        strength: 0.6,
+                        type: .references
+                    ))
+                }
+            }
+            // Connect to tag hubs
+            for tag in note.tags.prefix(2) {
+                edges.append(GraphEdge(
+                    id: "\(note.id.uuidString)-tag-\(tag)",
+                    source: note.id.uuidString,
+                    target: "tag-\(tag)",
+                    strength: 0.3,
+                    type: .relatesTo
+                ))
+            }
+        }
+
+        return Array(edges.prefix(60))
     }
 
     private func scanVault() async {

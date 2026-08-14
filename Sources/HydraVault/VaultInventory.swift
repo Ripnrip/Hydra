@@ -28,7 +28,7 @@ public struct VaultInventory: Sendable {
                 counts[tag, default: 0] += 1
             }
         }
-        return counts.sorted { $0.value > $1.value }.map { (tag: $0.key, count: $0.value) }
+        return counts.sorted { $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value }.map { (tag: $0.key, count: $0.value) }
     }
 
     /// All unique wikilink targets that don't resolve to any note title (broken links).

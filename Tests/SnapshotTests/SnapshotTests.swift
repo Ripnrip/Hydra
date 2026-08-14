@@ -215,11 +215,11 @@ struct OracleDataSnapshots {
         for (title, path, tags, links, cat) in sampleData {
             notes.append(VaultNote(
                 relativePath: path, title: title, tags: tags, wikilinks: links,
-                paraCategory: cat, modifiedDate: Date().addingTimeInterval(TimeInterval(-Int.random(in: 0...86400*7))),
+                paraCategory: cat, modifiedDate: Date(timeIntervalSince1970: 1755100000),
                 orphaned: links.isEmpty
             ))
         }
-        let inv = VaultInventory(vaultRoot: "~/Documents/MyVault", notes: notes, scannedAt: Date())
+        let inv = VaultInventory(vaultRoot: "~/Documents/MyVault", notes: notes, scannedAt: Date(timeIntervalSince1970: 1755100000))
         snapViewBoth(
             OracleViewWithData(inventory: inv),
             named: "oracle_data", width: 900, height: 600
