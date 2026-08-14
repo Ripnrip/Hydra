@@ -9,7 +9,9 @@ struct OracleView: View {
     @State private var inventory: VaultInventory?
     @State private var isLoading = false
     @State private var searchText = ""
-    @State private var vaultPath = "~/Documents/MyVault"
+    @State private var vaultPath = CommandLine.arguments.contains("--demo-oracle")
+        ? NSHomeDirectory() + "/Developer/SecondBrain"
+        : "~/Documents/MyVault"
     @State private var showVaultPicker = false
     @State private var ragResult: HybridRAGQuery.Result?
     @State private var semanticIndex: LocalSemanticIndex?
@@ -124,7 +126,15 @@ struct OracleView: View {
             .padding(.bottom, 32)
         }
         .background(Color.hydraVoid)
-        .task { await scanVault() }
+        .task {
+            await scanVault()
+            // Demo mode: auto-run a query after scan completes
+            if CommandLine.arguments.contains("--demo-oracle") {
+                searchText = "andromeda memory control plane"
+                try? await Task.sleep(for: .seconds(1))
+                await runQuery()
+            }
+        }
     }
 
     private var emptyState: some View {
