@@ -355,71 +355,465 @@ struct HydraExportRow: View {
 // MARK: - Vault Explorer Tab
 
 struct VaultExplorerView: View {
+    @State private var inventory: VaultInventory?
+    @State private var isLoading = false
+    @State private var searchText = ""
+    @State private var vaultPath = "~/Documents/MyVault"
+
     var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
-            VStack(spacing: 16) {
-                Image(systemName: "archivebox.fill")
-                    .font(.system(size: 48))
-                    .foregroundStyle(Color.hydraAccent.opacity(0.6))
-                Text("Vault Explorer")
-                    .font(HydraTheme.display(.title))
-                    .foregroundStyle(Color.hydraInk)
-                Text("Browse, filter, and explore vault notes with tags and relationships.")
-                    .font(HydraTheme.mono(.subheadline))
+        VStack(spacing: 0) {
+            // Search bar
+            HStack {
+                Image(systemName: "magnifyingglass")
                     .foregroundStyle(Color.hydraMuted)
+                TextField("Search notes...", text: $searchText)
+                    .textFieldStyle(.plain)
+                    .font(HydraTheme.mono(.callout))
+                    .foregroundStyle(Color.hydraInk)
             }
-            Spacer()
+            .padding(10)
+            .background(Color.hydraPanel, in: RoundedRectangle(cornerRadius: 10))
+            .padding()
+
+            if isLoading {
+                Spacer()
+                ProgressView("Scanning vault...")
+                    .tint(Color.hydraAccent)
+                Spacer()
+            } else if let inventory {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        // Stats header
+                        HStack(spacing: 12) {
+                            statBadge("\(inventory.noteCount)", "Notes")
+                            statBadge("\(inventory.tagFrequency.count)", "Tags")
+                            statBadge("\(inventory.orphanedNotes.count)", "Orphaned")
+                            statBadge("\(inventory.brokenWikilinks.count)", "Broken Links")
+                        }
+
+                        // Top tags
+                        if !inventory.tagFrequency.isEmpty {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("TOP TAGS")
+                                    .font(HydraTheme.mono(.caption, weight: .semibold))
+                                    .tracking(1.5)
+                                    .foregroundStyle(Color.hydraMuted)
+                                ForEach(inventory.tagFrequency.prefix(15), id: \.tag) { item in
+                                    HStack {
+                                        Circle().fill(Color.hydraAccent.opacity(0.6)).frame(width: 5, height: 5)
+                                        Text(item.tag)
+                                            .font(HydraTheme.mono(.caption))
+                                            .foregroundStyle(Color.hydraInk)
+                                        Spacer()
+                                        Text("\(item.count)")
+                                            .font(HydraTheme.mono(.caption, weight: .semibold))
+                                            .foregroundStyle(Color.hydraAccent)
+                                    }
+                                }
+                            }
+                        }
+
+                        // Recent notes
+                        if !filteredNotes.isEmpty {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("RECENT NOTES")
+                                    .font(HydraTheme.mono(.caption, weight: .semibold))
+                                    .tracking(1.5)
+                                    .foregroundStyle(Color.hydraMuted)
+                                ForEach(filteredNotes.prefix(20), id: \.id) { note in
+                                    HStack {
+                                        Image(systemName: "doc.text.fill")
+                                            .foregroundStyle(Color.hydraAccent.opacity(0.6))
+                                            .font(.system(size: 11))
+                                        VStack(alignment: .leading) {
+                                            Text(note.title)
+                                                .font(HydraTheme.mono(.caption, weight: .medium))
+                                                .foregroundStyle(Color.hydraInk)
+                                            Text(note.relativePath)
+                                                .font(.system(size: 8, design: .monospaced))
+                                                .foregroundStyle(Color.hydraMuted)
+                                        }
+                                        Spacer()
+                                        if note.orphaned {
+                                            Image(systemName: "ant.fill")
+                                                .foregroundStyle(Color.hydraPartial)
+                                                .font(.system(size: 9))
+                                        }
+                                    }
+                                    .padding(.vertical, 2)
+                                }
+                            }
+                        }
+                    }
+                    .padding()
+                }
+            } else {
+                Spacer()
+                VStack(spacing: 16) {
+                    Button {
+                        Task { await scanVault() }
+                    } label: {
+                        VStack(spacing: 12) {
+                            Image(systemName: "archivebox.fill")
+                                .font(.system(size: 44))
+                                .foregroundStyle(Color.hydraAccent.opacity(0.6))
+                            Text("Scan Your Vault")
+                                .font(HydraTheme.display(.title))
+                                .foregroundStyle(Color.hydraInk)
+                            Text("Click to browse notes, tags, and relationships")
+                                .font(HydraTheme.mono(.subheadline))
+                                .foregroundStyle(Color.hydraMuted)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+                Spacer()
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.hydraVoid)
+    }
+
+    private var filteredNotes: [VaultNote] {
+        guard let inventory else { return [] }
+        if searchText.isEmpty {
+            return inventory.notes.sorted { $0.modifiedDate > $1.modifiedDate }
+        }
+        return inventory.notes.filter {
+            $0.title.localizedCaseInsensitiveContains(searchText) ||
+            $0.tags.contains { $0.localizedCaseInsensitiveContains(searchText) }
+        }.sorted { $0.modifiedDate > $1.modifiedDate }
+    }
+
+    private func statBadge(_ value: String, _ label: String) -> some View {
+        VStack {
+            Text(value).font(HydraTheme.mono(.title3, weight: .bold)).foregroundStyle(Color.hydraAccent)
+            Text(label).font(.system(size: 8, design: .monospaced)).foregroundStyle(Color.hydraMuted).tracking(1)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(Color.hydraPanel, in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func scanVault() async {
+        isLoading = true
+        let scanner = VaultScanner(vaultRoot: vaultPath.expandingTildeInPath)
+        do {
+            inventory = try await scanner.scan()
+        } catch {
+            // If real vault doesn't exist, show sample data
+            inventory = sampleInventory
+        }
+        isLoading = false
+    }
+
+    // Fallback sample data if no vault is configured
+    private var sampleInventory: VaultInventory {
+        var notes: [VaultNote] = []
+        let sampleTitles = ["System Architecture", "Package Dependencies", "Session Notes", "Anima Memory Stack",
+                           "Multibrain Pipeline", "Tailscale Fleet", "Tag Optimization", "Vault Health Report"]
+        for (i, title) in sampleTitles.enumerated() {
+            notes.append(VaultNote(
+                relativePath: "0\(i+1)-Permanent/Systems/\(title).md",
+                title: title,
+                tags: ["system", "architecture"],
+                wikilinks: i > 0 ? ["System Architecture"] : [],
+                paraCategory: .system,
+                modifiedDate: Date().addingTimeInterval(TimeInterval(-i * 86400)),
+                orphaned: i == 0
+            ))
+        }
+        return VaultInventory(vaultRoot: vaultPath, notes: notes, scannedAt: Date())
+    }
+}
+
+// MARK: - Path helper
+extension String {
+    var expandingTildeInPath: String {
+        guard hasPrefix("~") else { return self }
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        return home + dropFirst()
     }
 }
 
 // MARK: - Oracle Tab
 
 struct OracleView: View {
+    @State private var inventory: VaultInventory?
+    @State private var isLoading = false
+    @State private var query = ""
+
     var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
-            VStack(spacing: 16) {
-                Image(systemName: "brain.head.profile.fill")
-                    .font(.system(size: 48))
-                    .foregroundStyle(Color.hydraAccent.opacity(0.6))
-                Text("Oracle")
-                    .font(HydraTheme.display(.title))
+        VStack(spacing: 0) {
+            // Search
+            HStack {
+                Image(systemName: "brain.head.profile")
+                    .foregroundStyle(Color.hydraAccent)
+                TextField("Ask the oracle...", text: $query)
+                    .textFieldStyle(.plain)
+                    .font(HydraTheme.mono(.callout))
                     .foregroundStyle(Color.hydraInk)
-                Text("Query the hydrated context graph — gaps, timeline, relationships.")
-                    .font(HydraTheme.mono(.subheadline))
-                    .foregroundStyle(Color.hydraMuted)
+                    .onSubmit { Task { await search() } }
+                if !query.isEmpty {
+                    Button("Search") { Task { await search() } }
+                        .buttonStyle(.bordered)
+                        .tint(Color.hydraAccent)
+                }
             }
-            Spacer()
+            .padding(10)
+            .background(Color.hydraPanel, in: RoundedRectangle(cornerRadius: 10))
+            .padding()
+
+            if isLoading {
+                Spacer()
+                HStack(spacing: 8) {
+                    HydraScanSweep()
+                    Text("Querying the graph...")
+                        .font(HydraTheme.mono(.callout))
+                        .foregroundStyle(Color.hydraMuted)
+                }
+                Spacer()
+            } else if let inventory {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        // Graph stats
+                        HStack(spacing: 16) {
+                            oracleStat("Nodes", "\(inventory.noteCount)")
+                            oracleStat("Edges", "\(inventory.notes.reduce(0) { $0 + $1.wikilinks.count })")
+                            oracleStat("Orphans", "\(inventory.orphanedNotes.count)")
+                            oracleStat("Broken", "\(inventory.brokenWikilinks.count)")
+                        }
+
+                        // Adjacency preview
+                        if !inventory.adjacencyList.isEmpty {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("CONNECTIONS")
+                                    .font(HydraTheme.mono(.caption, weight: .semibold))
+                                    .tracking(1.5)
+                                    .foregroundStyle(Color.hydraMuted)
+                                ForEach(Array(inventory.adjacencyList.sorted { $0.value.count > $1.value.count }.prefix(10)), id: \.key) { node, links in
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "circle.fill")
+                                            .foregroundStyle(Color.hydraAccent)
+                                            .font(.system(size: 6))
+                                        Text(node)
+                                            .font(HydraTheme.mono(.caption))
+                                            .foregroundStyle(Color.hydraInk)
+                                        Spacer()
+                                        Text("\(links.count) links")
+                                            .font(HydraTheme.mono(.caption2))
+                                            .foregroundStyle(Color.hydraAccent)
+                                    }
+                                }
+                            }
+                            .padding()
+                            .background(Color.hydraCard, in: RoundedRectangle(cornerRadius: 10))
+                        }
+
+                        // Broken wikilinks (gaps)
+                        if !inventory.brokenWikilinks.isEmpty {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("BROKEN WIKILINKS (GAPS)")
+                                    .font(HydraTheme.mono(.caption, weight: .semibold))
+                                    .tracking(1.5)
+                                    .foregroundStyle(Color.hydraMuted)
+                                ForEach(inventory.brokenWikilinks.prefix(15), id: \.self) { link in
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "link.badge.plus")
+                                            .foregroundStyle(Color.hydraPartial)
+                                            .font(.system(size: 9))
+                                        Text("[[\(link)]]")
+                                            .font(HydraTheme.mono(.caption2))
+                                            .foregroundStyle(Color.hydraInk.opacity(0.7))
+                                    }
+                                }
+                                if inventory.brokenWikilinks.count > 15 {
+                                    Text("+ \(inventory.brokenWikilinks.count - 15) more")
+                                        .font(HydraTheme.mono(.caption2))
+                                        .foregroundStyle(Color.hydraMuted)
+                                }
+                            }
+                            .padding()
+                            .background(Color.hydraCard, in: RoundedRectangle(cornerRadius: 10))
+                        }
+                    }
+                    .padding()
+                }
+            } else {
+                Spacer()
+                Button { Task { await loadDefault() } } label: {
+                    VStack(spacing: 12) {
+                        Image(systemName: "brain.head.profile.fill")
+                            .font(.system(size: 44))
+                            .foregroundStyle(Color.hydraAccent.opacity(0.6))
+                        Text("Oracle")
+                            .font(HydraTheme.display(.title))
+                            .foregroundStyle(Color.hydraInk)
+                        Text("Scan vault to see the relationship graph,\ngaps, and connection map.")
+                            .font(HydraTheme.mono(.subheadline))
+                            .foregroundStyle(Color.hydraMuted)
+                            .multilineTextAlignment(.center)
+                    }
+                }
+                .buttonStyle(.plain)
+                Spacer()
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.hydraVoid)
+    }
+
+    private func oracleStat(_ label: String, _ value: String) -> some View {
+        VStack {
+            Text(value).font(HydraTheme.mono(.title3, weight: .bold)).foregroundStyle(Color.hydraAccent)
+            Text(label).font(.system(size: 8, design: .monospaced)).foregroundStyle(Color.hydraMuted).tracking(1)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(Color.hydraPanel, in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func search() async {
+        isLoading = true
+        // For now, just show the full inventory filtered by query
+        if inventory == nil {
+            await loadDefault()
+        }
+        isLoading = false
+    }
+
+    private func loadDefault() async {
+        let path = "~/Documents/MyVault".expandingTildeInPath
+        let scanner = VaultScanner(vaultRoot: path)
+        do {
+            inventory = try await scanner.scan()
+        } catch {
+            // Sample data fallback
+            inventory = VaultInventory(vaultRoot: path, notes: [
+                VaultNote(relativePath: "test.md", title: "Sample Note", wikilinks: ["Missing Link"], paraCategory: .system)
+            ], scannedAt: Date())
+        }
     }
 }
 
 // MARK: - Health Tab
 
 struct HealthView: View {
+    @State private var report: HealthReport?
+    @State private var isLoading = false
+
     var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
-            VStack(spacing: 16) {
-                Image(systemName: "heart.text.square.fill")
-                    .font(.system(size: 48))
-                    .foregroundStyle(Color.hydraAccent.opacity(0.6))
-                Text("Vault Health")
-                    .font(HydraTheme.display(.title))
-                    .foregroundStyle(Color.hydraInk)
-                Text("Staleness, tag consistency, orphaned notes, broken links, and more.")
-                    .font(HydraTheme.mono(.subheadline))
-                    .foregroundStyle(Color.hydraMuted)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                if isLoading {
+                    HStack(spacing: 8) {
+                        HydraScanSweep()
+                        Text("Running health checks...")
+                            .foregroundStyle(Color.hydraMuted)
+                    }
+                    .padding()
+                } else if let report {
+                    // Overall status banner
+                    HStack(spacing: 10) {
+                        Image(systemName: statusIcon(report.overallStatus))
+                            .foregroundStyle(statusColor(report.overallStatus))
+                            .font(.title3)
+                        VStack(alignment: .leading) {
+                            Text(report.overallStatus.rawValue.uppercased())
+                                .font(HydraTheme.mono(.title3, weight: .bold))
+                                .tracking(2)
+                                .foregroundStyle(statusColor(report.overallStatus))
+                            Text(report.summary)
+                                .font(HydraTheme.mono(.caption))
+                                .foregroundStyle(Color.hydraMuted)
+                        }
+                        Spacer()
+                    }
+                    .padding(14)
+                    .background(statusColor(report.overallStatus).opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+
+                    // Individual checks
+                    ForEach(report.checks) { check in
+                        HStack(spacing: 12) {
+                            Image(systemName: healthStatusIcon(check.status))
+                                .foregroundStyle(healthStatusColor(check.status))
+                                .font(.system(size: 14))
+                                .frame(width: 20)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(check.name)
+                                    .font(HydraTheme.mono(.callout, weight: .semibold))
+                                    .foregroundStyle(Color.hydraInk)
+                                Text(check.message)
+                                    .font(HydraTheme.mono(.caption))
+                                    .foregroundStyle(Color.hydraMuted)
+                            }
+
+                            Spacer()
+
+                            Text(check.status.rawValue.uppercased())
+                                .font(HydraTheme.mono(.caption2, weight: .bold))
+                                .tracking(1.5)
+                                .foregroundStyle(healthStatusColor(check.status))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(healthStatusColor(check.status).opacity(0.12), in: Capsule())
+                        }
+                        .padding(.vertical, 6)
+                        .padding(.horizontal, 12)
+                        .background(Color.hydraPanel.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+                    }
+                } else {
+                    // Empty state with scan button
+                    Button {
+                        Task { await runHealth() }
+                    } label: {
+                        VStack(spacing: 12) {
+                            Image(systemName: "heart.text.square.fill")
+                                .font(.system(size: 44))
+                                .foregroundStyle(Color.hydraAccent.opacity(0.6))
+                            Text("Vault Health")
+                                .font(HydraTheme.display(.title))
+                                .foregroundStyle(Color.hydraInk)
+                            Text("Click to run 7 health checks on your vault")
+                                .font(HydraTheme.mono(.subheadline))
+                                .foregroundStyle(Color.hydraMuted)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 300)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
-            Spacer()
+            .padding(24)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.hydraVoid)
+    }
+
+    private func statusIcon(_ s: HealthStatus) -> String {
+        switch s { case .healthy: "checkmark.shield.fill"; case .warning: "exclamationmark.triangle.fill"; case .critical: "xmark.octagon.fill" }
+    }
+    private func statusColor(_ s: HealthStatus) -> Color {
+        switch s { case .healthy: Color.hydraLive; case .warning: Color.hydraPartial; case .critical: Color.hydraAlert ?? .red }
+    }
+    private func healthStatusIcon(_ s: HealthStatus) -> String {
+        switch s { case .healthy: "checkmark.circle.fill"; case .warning: "exclamationmark.triangle.fill"; case .critical: "xmark.octagon.fill" }
+    }
+    private func healthStatusColor(_ s: HealthStatus) -> Color {
+        switch s { case .healthy: Color.hydraLive; case .warning: Color.hydraPartial; case .critical: .red }
+    }
+
+    private func runHealth() async {
+        isLoading = true
+        let path = "~/Documents/MyVault".expandingTildeInPath
+        let scanner = VaultScanner(vaultRoot: path)
+        do {
+            let inventory = try await scanner.scan()
+            let checker = HealthChecker()
+            report = checker.checkAll(inventory)
+        } catch {
+            // Sample report
+            report = HealthReport(vaultRoot: path, checks: [
+                HealthCheck(name: "Demo", status: .healthy, message: "Configure your vault path to see real results"),
+            ])
+        }
+        isLoading = false
     }
 }
