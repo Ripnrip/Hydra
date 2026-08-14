@@ -14,6 +14,12 @@ struct OracleView: View {
     @State private var ragResult: HybridRAGQuery.Result?
     @State private var semanticIndex: LocalSemanticIndex?
     @State private var isQuerying = false
+    @State private var llmAnswer: String?
+    @State private var llmClient: LLMAnswerClient?
+    @State private var showLLMConfig = false
+    @State private var llmBaseURL = ""
+    @State private var llmAPIKey = ""
+    @State private var llmModel = "gpt-4o-mini"
 
     var body: some View {
         ScrollView {
@@ -29,6 +35,16 @@ struct OracleView: View {
                             .foregroundStyle(Color.hydraMuted)
                     }
                     Spacer()
+                    Button {
+                        showLLMConfig.toggle()
+                    } label: {
+                        Image(systemName: llmClient?.isConfigured == true ? "sparkles" : "gearshape")
+                            .foregroundStyle(llmClient?.isConfigured == true ? Color.hydraAccent : Color.hydraMuted)
+                            .font(.system(size: 16))
+                    }
+                    .buttonStyle(.plain)
+                    .help("LLM settings — optional reasoning upgrade")
+
                     HydraButton("Scan", icon: "magnifyingglass") {
                         Task { await scanVault() }
                     }
@@ -66,9 +82,27 @@ struct OracleView: View {
                 )
                 .padding(.horizontal, 24)
 
-                // RAG answer
+                // RAG answer (offline summary)
                 if let result = ragResult {
                     ragAnswerView(result)
+                        .padding(.horizontal, 24)
+                }
+
+                // LLM reasoned answer (when configured)
+                if let reasoned = llmAnswer {
+                    HydraPanel(title: "AI Reasoning", icon: "sparkles") {
+                        Text(reasoned)
+                            .font(HydraTheme.mono(.callout))
+                            .foregroundStyle(Color.hydraInk)
+                            .lineSpacing(5)
+                            .textSelection(.enabled)
+                    }
+                    .padding(.horizontal, 24)
+                }
+
+                // LLM config sheet
+                if showLLMConfig {
+                    llmConfigSheet
                         .padding(.horizontal, 24)
                 }
 
@@ -114,12 +148,16 @@ struct OracleView: View {
 
     @ViewBuilder
     private func oracleContent(_ inv: VaultInventory) -> some View {
-        // Relationship graph — the Oracle's signature view
-        RelationshipGraphView(nodes: graphNodes(from: inv), edges: graphEdges(from: inv))
-            .frame(height: 360)
-            .clipShape(RoundedRectangle(cornerRadius: HydraTheme.cornerRadius))
-            .overlay(RoundedRectangle(cornerRadius: HydraTheme.cornerRadius).strokeBorder(Color.hydraLine, lineWidth: 1))
-            .padding(.horizontal, 24)
+        // Relationship graph — highlighted when RAG results exist
+        VaultGraphView(
+            inventory: inv,
+            highlightedSemanticIDs: Set(ragResult?.semanticHits.map(\.id) ?? []),
+            highlightedGraphIDs: Set(ragResult?.graphHits.map(\.id) ?? [])
+        )
+        .frame(height: 360)
+        .clipShape(RoundedRectangle(cornerRadius: HydraTheme.cornerRadius))
+        .overlay(RoundedRectangle(cornerRadius: HydraTheme.cornerRadius).strokeBorder(Color.hydraLine, lineWidth: 1))
+        .padding(.horizontal, 24)
 
         // Stats row
         HStack(spacing: 12) {
@@ -325,12 +363,87 @@ struct OracleView: View {
         )
 
         let query = HybridRAGQuery()
-        ragResult = await query.run(
+        let result = await query.run(
             query: searchText,
             index: index,
             links: links,
             titleFor: { titleMap[$0] ?? $0 }
         )
+        ragResult = result
+
+        // Optional LLM reasoning upgrade
+        if llmClient?.isConfigured == true, let llm = llmClient {
+            if let reasoned = try? await llm.answer(question: searchText, context: result.contextNotes) {
+                llmAnswer = reasoned
+            } else {
+                llmAnswer = nil  // fall back to offline answer
+            }
+        }
+    }
+
+    // MARK: - LLM config sheet
+
+    private var llmConfigSheet: some View {
+        HydraPanel(title: "LLM Settings (optional)", icon: "gearshape") {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Add an OpenAI-compatible endpoint for AI-reasoned answers. Leave empty for fully offline mode.")
+                    .font(HydraTheme.mono(.caption))
+                    .foregroundStyle(Color.hydraMuted)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("BASE URL")
+                        .font(.system(size: 8, design: .monospaced).weight(.semibold))
+                        .tracking(1.5)
+                        .foregroundStyle(Color.hydraMuted)
+                    TextField("https://api.openai.com/v1 or http://localhost:11434/v1", text: $llmBaseURL)
+                        .textFieldStyle(HydraFieldStyle())
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("MODEL")
+                        .font(.system(size: 8, design: .monospaced).weight(.semibold))
+                        .tracking(1.5)
+                        .foregroundStyle(Color.hydraMuted)
+                    TextField("gpt-4o-mini, llama3.2, etc.", text: $llmModel)
+                        .textFieldStyle(HydraFieldStyle())
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("API KEY (optional for local)")
+                        .font(.system(size: 8, design: .monospaced).weight(.semibold))
+                        .tracking(1.5)
+                        .foregroundStyle(Color.hydraMuted)
+                    SecureField("sk-... (empty for Ollama)", text: $llmAPIKey)
+                        .textFieldStyle(HydraFieldStyle())
+                }
+
+                HStack {
+                    HydraButton("Save", icon: "checkmark") {
+                        let config = LLMAnswerClient.Config(
+                            baseURL: llmBaseURL,
+                            apiKey: llmAPIKey,
+                            model: llmModel
+                        )
+                        llmClient = LLMAnswerClient(config: config)
+                        // Persist
+                        UserDefaults.standard.set(llmBaseURL, forKey: "hydra.llm.baseURL")
+                        UserDefaults.standard.set(llmAPIKey, forKey: "hydra.llm.apiKey")
+                        UserDefaults.standard.set(llmModel, forKey: "hydra.llm.model")
+                        showLLMConfig = false
+                    }
+
+                    if llmClient?.isConfigured == true {
+                        HydraButton("Disable", icon: "xmark") {
+                            llmClient = nil
+                            llmAnswer = nil
+                            UserDefaults.standard.removeObject(forKey: "hydra.llm.baseURL")
+                        }
+                    }
+
+                    Spacer()
+                }
+            }
+        }
     }
 
     // MARK: - RAG answer rendering

@@ -9,9 +9,14 @@ import HydraVault
 /// Selected node's connections highlight; everything else dims.
 struct VaultGraphView: View {
     let inventory: VaultInventory
+    /// Notes highlighted by a RAG query: semantic hits (bright) + graph hits (soft)
+    var highlightedSemanticIDs: Set<String> = []
+    var highlightedGraphIDs: Set<String> = []
     @State private var selectedNode: String?
     @State private var layoutCache: [String: NodeLayout] = [:]
     @State private var cachedSize: CGSize = .zero
+
+    private var hasHighlights: Bool { !highlightedSemanticIDs.isEmpty || !highlightedGraphIDs.isEmpty }
 
     private func cachedLayout(for size: CGSize) -> [String: NodeLayout] {
         if cachedSize != size || layoutCache.isEmpty {
@@ -35,8 +40,8 @@ struct VaultGraphView: View {
                         p.addLine(to: edge.to)
                     }
                     .stroke(
-                        Color.hydraAccent.opacity(edge.highlight ? 0.55 : 0.14),
-                        lineWidth: edge.highlight ? 1.5 : 0.5
+                        edgeStrokeColor(edge),
+                        lineWidth: edgeLineWidth(edge)
                     )
                 }
 
@@ -60,38 +65,90 @@ struct VaultGraphView: View {
         }
     }
 
+    // MARK: - RAG highlight helpers
+
+    private func edgeStrokeColor(_ edge: EdgeSegment) -> Color {
+        if hasHighlights {
+            // During RAG highlighting: edges between highlighted nodes glow
+            let fromKey = edge.id.components(separatedBy: "|").first ?? ""
+            let toKey = edge.id.components(separatedBy: "|").last ?? ""
+            let fromHi = highlightedSemanticIDs.contains(fromKey) || highlightedGraphIDs.contains(fromKey)
+            let toHi = highlightedSemanticIDs.contains(toKey) || highlightedGraphIDs.contains(toKey)
+            if fromHi && toHi { return Color.hydraAccent.opacity(0.7) }
+            if fromHi || toHi { return Color.hydraAccent.opacity(0.35) }
+            return Color.hydraAccent.opacity(0.05)  // dim non-retrieved
+        }
+        return Color.hydraAccent.opacity(edge.highlight ? 0.55 : 0.14)
+    }
+
+    private func edgeLineWidth(_ edge: EdgeSegment) -> CGFloat {
+        if hasHighlights {
+            let fromKey = edge.id.components(separatedBy: "|").first ?? ""
+            let toKey = edge.id.components(separatedBy: "|").last ?? ""
+            let fromHi = highlightedSemanticIDs.contains(fromKey) || highlightedGraphIDs.contains(fromKey)
+            let toHi = highlightedSemanticIDs.contains(toKey) || highlightedGraphIDs.contains(toKey)
+            if fromHi && toHi { return 2 }
+            if fromHi || toHi { return 1 }
+            return 0.5
+        }
+        return edge.highlight ? 1.5 : 0.5
+    }
+
+    private func nodeHighlightLevel(_ key: String) -> HighlightLevel {
+        if highlightedSemanticIDs.contains(key) { return .semantic }
+        if highlightedGraphIDs.contains(key) { return .graph }
+        return hasHighlights ? .dimmed : .normal
+    }
+
+    enum HighlightLevel {
+        case normal, semantic, graph, dimmed
+    }
+
     // MARK: - Node view
+
+    private func isDimmed(_ item: NodeLayout, isSelected: Bool) -> Bool {
+        let level = nodeHighlightLevel(item.key)
+        if level == .dimmed { return true }
+        return selectedNode != nil && !isSelected && !item.isConnectedToSelected
+    }
 
     @ViewBuilder
     private func nodeLabel(_ item: NodeLayout, isSelected: Bool) -> some View {
         let connections = item.connections
-        let dimmed = selectedNode != nil && !isSelected && !item.isConnectedToSelected
+        let level = nodeHighlightLevel(item.key)
+        let dimmed = isDimmed(item, isSelected: isSelected)
 
         ZStack {
-            if isSelected {
+            if isSelected || level == .semantic {
+                // Glow halo for selected + semantic hits
                 Circle()
-                    .fill(Color.hydraAccent.opacity(0.18))
-                    .frame(width: item.radius * 4.5, height: item.radius * 4.5)
+                    .fill(Color.hydraAccent.opacity(level == .semantic ? 0.25 : 0.18))
+                    .frame(width: item.radius * (level == .semantic ? 5 : 4.5),
+                           height: item.radius * (level == .semantic ? 5 : 4.5))
+                    .shadow(color: Color.hydraAccent.opacity(0.5), radius: level == .semantic ? 8 : 0)
             }
 
             Circle()
-                .fill(item.color)
-                .frame(width: item.radius * 2, height: item.radius * 2)
+                .fill(level == .semantic ? Color.hydraAccent : item.color)
+                .frame(width: item.radius * (level == .semantic ? 2.2 : 2.0),
+                       height: item.radius * (level == .semantic ? 2.2 : 2.0))
                 .overlay(
                     Circle().strokeBorder(
-                        isSelected ? Color.hydraAccent : Color(red: 0.04, green: 0.02, blue: 0.07),
-                        lineWidth: isSelected ? 2.5 : 1
+                        isSelected || level == .semantic
+                            ? Color.hydraAccent
+                            : Color(red: 0.04, green: 0.02, blue: 0.07),
+                        lineWidth: isSelected || level == .semantic ? 2.5 : 1
                     )
                 )
-                .opacity(dimmed ? 0.25 : 1)
+                .opacity(dimmed ? 0.15 : level == .graph ? 0.7 : 1)
 
             Text(item.title)
-                .font(.system(size: isSelected ? 11 : 9, design: .monospaced))
-                .foregroundStyle(Color.hydraInk.opacity(dimmed ? 0.3 : 0.9))
+                .font(.system(size: isSelected || level == .semantic ? 11 : 9, design: .monospaced))
+                .foregroundStyle(Color.hydraInk.opacity(dimmed ? 0.15 : level == .graph ? 0.6 : 0.9))
                 .lineLimit(1)
                 .fixedSize()
                 .offset(y: item.radius + 9)
-                .opacity(isSelected || connections >= 2 || selectedNode == nil ? 1 : 0)
+                .opacity(isSelected || connections >= 2 || selectedNode == nil || level != .dimmed ? 1 : 0)
         }
         .onTapGesture {
             withAnimation(.easeInOut(duration: 0.2)) {
