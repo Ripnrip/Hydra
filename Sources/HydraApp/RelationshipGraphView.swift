@@ -52,6 +52,12 @@ final class GraphSimulation: ObservableObject {
     @Published var nodes: [GraphNode]
     @Published var edges: [GraphEdge]
 
+    /// True when the layout has settled (total kinetic energy below threshold).
+    /// The render loop checks this to stop stepping — saves 60fps of needless
+    /// simulation + @Published invalidation once the graph stabilizes.
+    private(set) var isSettled = false
+    private var settledFrameCount = 0
+
     private var device: MTLDevice?
     private var commandQueue: MTLCommandQueue?
     private var useGPU: Bool = false
@@ -134,6 +140,19 @@ final class GraphSimulation: ObservableObject {
             nodes[i].position = positions[i]
             nodes[i].velocity = velocities[i]
         }
+
+        // Settle detection: total kinetic energy below threshold for N consecutive frames
+        // → stop the render loop from invalidating the view 60x/sec forever.
+        let totalEnergy = velocities.reduce(Float(0)) { $0 + simd_dot($1, $1) }
+        let energyThreshold = Float(n) * 0.05
+        if totalEnergy < energyThreshold {
+            settledFrameCount += 1
+            if settledFrameCount >= 30 {  // ~0.5s of stability
+                isSettled = true
+            }
+        } else {
+            settledFrameCount = 0
+        }
     }
 
     var isGPUActive: Bool { useGPU }
@@ -211,10 +230,13 @@ struct RelationshipGraphView: View {
                 simulation.center = SIMD2<Float>(width / 2, height / 2)
                 simulation.bounds = SIMD2<Float>(width, height)
 
+                // O(1) node lookup — build once per frame, not per edge
+                let nodeByID = Dictionary(simulation.nodes.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+
                 // Draw edges
                 for edge in simulation.edges {
-                    guard let src = simulation.nodes.first(where: { $0.id == edge.source }),
-                          let tgt = simulation.nodes.first(where: { $0.id == edge.target }) else { continue }
+                    guard let src = nodeByID[edge.source],
+                          let tgt = nodeByID[edge.target] else { continue }
 
                     var path = Path()
                     path.move(to: CGPoint(x: CGFloat(src.position.x), y: CGFloat(src.position.y)))
@@ -309,9 +331,10 @@ struct RelationshipGraphView: View {
             }
         }
         .onAppear {
-            // Start simulation loop — 60fps via display link equivalent
+            // Simulation loop — stops when kinetic energy settles (no infinite churn)
             displayLink = Timer.scheduledTimer(withTimeInterval: 1.0/60.0, repeats: true) { _ in
                 Task { @MainActor in
+                    guard simulation.isSettled == false else { return }
                     simulation.step()
                 }
             }

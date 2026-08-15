@@ -58,10 +58,13 @@ struct BeforeAfterGraphView: View {
                         CGPoint(x: CGFloat(p.x * scale + offsetX), y: CGFloat(p.y * scale + offsetY))
                     }
 
+                    // O(1) node lookup — built once per draw call
+                    let nodeByID = Dictionary(nodes.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+
                     // Draw edges
                     for edge in edges {
-                        guard let src = nodes.first(where: { $0.id == edge.source }),
-                              let tgt = nodes.first(where: { $0.id == edge.target }) else { continue }
+                        guard let src = nodeByID[edge.source],
+                              let tgt = nodeByID[edge.target] else { continue }
                         var path = Path()
                         path.move(to: scaled(src.position))
                         path.addLine(to: scaled(tgt.position))
