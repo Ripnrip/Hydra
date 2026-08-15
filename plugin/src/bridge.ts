@@ -1,7 +1,12 @@
-import { execFile } from 'child_process';
-import { promisify } from 'util';
-
-const execFileAsync = promisify(execFile);
+// Lazy-load child_process (not available in all bundler contexts)
+let execFileAsync: ((cmd: string, args: string[], opts?: any) => Promise<{stdout: string}>) | null = null;
+try {
+  const { execFile } = require('child_process');
+  const { promisify } = require('util');
+  execFileAsync = promisify(execFile);
+} catch {
+  // child_process unavailable — heuristic-only mode
+}
 
 export interface ScanResult {
   notes: number;
