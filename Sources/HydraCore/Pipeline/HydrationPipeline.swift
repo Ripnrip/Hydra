@@ -62,7 +62,7 @@ public struct SourceConfig: Sendable, Equatable {
 
 // MARK: - Source Kind
 
-public enum SourceKind: Sendable, Equatable, CaseIterable {
+public enum SourceKind: Sendable, Equatable, CaseIterable, Codable {
     case claudePlans      // ~/.claude/plans/*.md
     case claudeSessions   // ~/.claude/projects/*/sessions
     case codexSessions    // ~/.codex/
@@ -77,7 +77,7 @@ public enum SourceKind: Sendable, Equatable, CaseIterable {
 // MARK: - Export Destination
 
 /// Pluggable output destination. Same core pipeline, different targets.
-public struct ExportDestination: Sendable, Equatable {
+public struct ExportDestination: Sendable, Equatable, Codable {
     public var kind: ExportKind
     public var path: String?              // file/directory path for file-based exports
     public var endpoint: String?          // URL for API-based exports
@@ -91,7 +91,7 @@ public struct ExportDestination: Sendable, Equatable {
     }
 }
 
-public enum ExportKind: Sendable, Equatable, CaseIterable {
+public enum ExportKind: Sendable, Equatable, CaseIterable, Codable {
     case obsidian         // write to vault (primary)
     case jsonLD           // JSON-LD graph export
     case markdownPath     // markdown to custom directory

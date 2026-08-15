@@ -3,7 +3,7 @@ import Foundation
 // MARK: - Artifact Kind
 
 /// What type of source artifact this is. Drives classification heuristics and vault projection paths.
-public enum ArtifactKind: Sendable, Equatable {
+public enum ArtifactKind: Sendable, Equatable, Codable {
     case plan
     case session
     case decision
@@ -35,7 +35,7 @@ public enum ArtifactKind: Sendable, Equatable {
 
 /// Content lifecycle — where this artifact is in its editorial journey.
 /// From the artifact-lifecycle-policy.json content lifecycle states.
-public enum LifecycleState: String, Sendable, CaseIterable, Equatable {
+public enum LifecycleState: String, Sendable, CaseIterable, Equatable, Codable {
     case draft
     case accepted
     case active
@@ -51,7 +51,7 @@ public enum LifecycleState: String, Sendable, CaseIterable, Equatable {
 /// From artifact-lifecycle-policy.json delivery states.
 /// Only 3 are mechanically tracked in the Python outbox today (pending/applied/blocked);
 /// the other 5 are policy-defined but not yet enforced in code.
-public enum DeliveryState: String, Sendable, CaseIterable, Equatable {
+public enum DeliveryState: String, Sendable, CaseIterable, Equatable, Codable {
     case submitted
     case validated
     case canonicalCommitted = "canonical-committed"
