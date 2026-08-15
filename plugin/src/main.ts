@@ -110,7 +110,8 @@ export default class HydraPlugin extends Plugin {
       `${process.env.HOME}/.local/bin/hydra`,
     ];
 
-    const { execFileSync } = require('child_process');
+    let execFileSync: any = null;
+    try { execFileSync = require('child_process').execFileSync; } catch {}
     for (const path of candidates) {
       try {
         execFileSync(path, ['--version'], { stdio: 'ignore' });
