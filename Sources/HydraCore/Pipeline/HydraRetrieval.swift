@@ -160,6 +160,18 @@ public struct HybridRAGQuery: Sendable {
         public let graphHits: [(id: String, title: String)]
         public let allNoteIDs: [String]
 
+        public init(
+            query: String,
+            semanticHits: [(id: String, title: String, snippet: String, score: Float)],
+            graphHits: [(id: String, title: String)],
+            allNoteIDs: [String]
+        ) {
+            self.query = query
+            self.semanticHits = semanticHits
+            self.graphHits = graphHits
+            self.allNoteIDs = allNoteIDs
+        }
+
         public var answer: String {
             guard !semanticHits.isEmpty else {
                 return "No notes matched \"\(query)\". Try a more specific term, tag, or phrase from your vault."
