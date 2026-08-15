@@ -4,71 +4,106 @@ import HydraCore
 // MARK: - Vault Inventory
 
 /// A complete snapshot of an Obsidian vault at a point in time.
-/// Used by the health system, oracle queries, and the writer to avoid duplicates.
+/// All derived data is EAGERLY precomputed at init (one-time cost, then free reads).
+/// This is the performance contract: tagFrequency, adjacencyList, rankedNotes etc.
+/// are stored properties — zero per-access cost. Critical for SwiftUI views that
+/// read these per-frame.
 public struct VaultInventory: Sendable {
-    public var vaultRoot: String
-    public var notes: [VaultNote]
-    public var scannedAt: Date
 
-    public init(vaultRoot: String, notes: [VaultNote], scannedAt: Date) {
+    public let vaultRoot: String
+    public let notes: [VaultNote]
+    public let scannedAt: Date
+
+    // MARK: - Precomputed derived data (stored, not computed)
+
+    /// All unique tags with frequency, sorted by count desc.
+    public let tagFrequency: [(tag: String, count: Int)]
+
+    /// Wikilink targets that resolve to no note.
+    public let brokenWikilinks: [String]
+
+    /// Notes with no incoming links.
+    public let orphanedNotes: [VaultNote]
+
+    /// Lowercased title → index in notes. O(1) lookup.
+    public let titleIndex: [String: Int]
+
+    /// Bidirectional adjacency (wikilinks + backlinks).
+    public let adjacencyList: [String: [String]]
+
+    /// Connection count per lowercased title.
+    public let connectionCounts: [String: Int]
+
+    /// Notes sorted by connectivity desc, then recency desc.
+    public let rankedNotes: [VaultNote]
+
+    // MARK: - Init (precomputes everything)
+
+    public init(vaultRoot: String, notes: [VaultNote], scannedAt: Date = Date()) {
         self.vaultRoot = vaultRoot
         self.notes = notes
         self.scannedAt = scannedAt
+
+        // Precompute ALL derived data once — the one-time cost of a scan
+        var tagCounts: [String: Int] = [:]
+        var adj: [String: [String]] = [:]
+        var titleIdx: [String: Int] = [:]
+
+        for (i, note) in notes.enumerated() {
+            let key = note.title.lowercased()
+            if titleIdx[key] == nil { titleIdx[key] = i }
+            for tag in note.tags {
+                tagCounts[tag, default: 0] += 1
+            }
+            adj[key, default: []].append(contentsOf: note.wikilinks.map { $0.lowercased() })
+            for link in note.wikilinks {
+                adj[link.lowercased(), default: []].append(key)
+            }
+        }
+
+        self.tagFrequency = tagCounts
+            .sorted { $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value }
+            .map { (tag: $0.key, count: $0.value) }
+
+        let titleSet = Set(titleIdx.keys)
+        let allLinks = Set(adj.keys)
+        self.brokenWikilinks = Array(allLinks.subtracting(titleSet)).sorted()
+
+        self.orphanedNotes = notes.filter { $0.orphaned }
+        self.titleIndex = titleIdx
+        self.adjacencyList = adj
+
+        var counts: [String: Int] = [:]
+        for (key, links) in adj { counts[key] = links.count }
+        self.connectionCounts = counts
+
+        self.rankedNotes = notes.sorted { a, b in
+            let ac = counts[a.title.lowercased()] ?? 0
+            let bc = counts[b.title.lowercased()] ?? 0
+            if ac != bc { return ac > bc }
+            return a.modifiedDate > b.modifiedDate
+        }
     }
 
-    // MARK: - Derived data
+    // MARK: - Convenience (all O(1) or O(n) simple filters)
 
     public var noteCount: Int { notes.count }
 
-    /// All unique tags across the vault, with frequency.
-    public var tagFrequency: [(tag: String, count: Int)] {
-        var counts: [String: Int] = [:]
-        for note in notes {
-            for tag in note.tags {
-                counts[tag, default: 0] += 1
-            }
-        }
-        return counts.sorted { $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value }.map { (tag: $0.key, count: $0.value) }
-    }
-
-    /// All unique wikilink targets that don't resolve to any note title (broken links).
-    public var brokenWikilinks: [String] {
-        let titles = Set(notes.map { $0.title.lowercased() })
-        let allLinks = Set(notes.flatMap { $0.wikilinks.map { $0.lowercased() } })
-        return Array(allLinks.subtracting(titles)).sorted()
-    }
-
-    /// Notes with no incoming wikilinks (orphans in the graph).
-    public var orphanedNotes: [VaultNote] {
-        notes.filter { $0.orphaned }
-    }
-
-    /// Notes by PARA category.
     public func notes(in category: PARACategory) -> [VaultNote] {
         notes.filter { $0.paraCategory == category }
     }
 
-    /// Notes modified within the given time interval.
     public func notes(modifiedSince date: Date) -> [VaultNote] {
         notes.filter { $0.modifiedDate >= date }
     }
 
-    /// Notes missing frontmatter entirely.
     public var notesMissingFrontmatter: [VaultNote] {
         notes.filter { !$0.hasFrontmatter }
     }
 
-    /// Find a note by title (case-insensitive).
+    /// O(1) title lookup.
     public func note(titled title: String) -> VaultNote? {
-        notes.first { $0.title.lowercased() == title.lowercased() }
-    }
-
-    /// Build a simple adjacency list from wikilinks for graph traversal.
-    public var adjacencyList: [String: [String]] {
-        var graph: [String: [String]] = [:]
-        for note in notes {
-            graph[note.title.lowercased()] = note.wikilinks.map { $0.lowercased() }
-        }
-        return graph
+        guard let idx = titleIndex[title.lowercased()], idx < notes.count else { return nil }
+        return notes[idx]
     }
 }

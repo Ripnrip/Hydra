@@ -127,6 +127,8 @@ struct OracleView: View {
         }
         .background(Color.hydraVoid)
         .task {
+            // Only scan if not already scanned (prevents re-scan on every tab switch)
+            guard inventory == nil else { return }
             await scanVault()
             // Demo mode: auto-run a query after scan completes
             if ProcessInfo.processInfo.environment["HYDRA_DEMO"] != nil {
@@ -549,7 +551,11 @@ struct HealthView: View {
             .padding(.bottom, 32)
         }
         .background(Color.hydraVoid)
-        .task { await runChecks() }
+        .task {
+            // Only run once — prevent re-scan on every tab switch
+            guard report == nil else { return }
+            await runChecks()
+        }
     }
 
     private var emptyState: some View {
