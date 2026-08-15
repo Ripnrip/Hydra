@@ -26,7 +26,7 @@ public actor ClaudePlansAdapter: SourceAdapter {
     }
 
     public static var defaultPlansDirectory: String {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let home = PlatformPaths.home
         return "\(home)/.claude/plans"
     }
 

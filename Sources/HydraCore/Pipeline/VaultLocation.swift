@@ -139,7 +139,13 @@ extension String {
     /// Expand ~ to home directory.
     var expandingTildeInPath: String {
         guard hasPrefix("~") else { return self }
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let home: String
+        #if os(macOS)
+        home = PlatformPaths.home
+        #else
+        // iOS: sandbox container; ~ resolves to the app's Documents home
+        home = NSHomeDirectory()
+        #endif
         return home + dropFirst()
     }
 

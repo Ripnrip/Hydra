@@ -1,0 +1,79 @@
+name: Hydra
+options:
+  bundleIdPrefix: com.binarybros
+  deploymentTarget:
+    iOS: "17.0"
+    macOS: "15.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: 5Y7NBCKHJP
+
+packages:
+  Hydra:
+    path: .
+
+targets:
+  Hydra-iOS:
+    type: application
+    platform: iOS
+    sources:
+      - Sources/HydraApp/HydraiOSApp.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.binarybros.hydra.ios
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_IDENTITY: "Apple Development"
+        CODE_SIGNING_ALLOWED: "NO"
+    dependencies:
+      - package: Hydra
+        products:
+          - HydraCore
+          - HydraVault
+          - HydraHealth
+
+  Hydra-macOS:
+    type: application
+    platform: macOS
+    sources:
+      - Sources/HydraApp
+      - path: Sources/HydraApp
+        excludes:
+          - "HydraiOSApp.swift"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.binarybros.hydra
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_IDENTITY: "Apple Development"
+        CODE_SIGNING_ALLOWED: "NO"
+    dependencies:
+      - package: Hydra
+        products:
+          - HydraCore
+          - HydraVault
+          - HydraHealth
+          - HydraGraph
+
+schemes:
+  Hydra-iOS:
+    build:
+      targets:
+        Hydra-iOS: all
+    run:
+      config: Debug
+    archive:
+      config: Release
+  Hydra-macOS:
+    build:
+      targets:
+        Hydra-macOS: all
+    run:
+      config: Debug
+    archive:
+      config: Release

@@ -15,7 +15,7 @@ public actor VaultDetector {
     public func detect(at path: String) async -> SmartVaultConfig {
         let fm = FileManager.default
         let expanded = path.hasPrefix("~")
-            ? fm.homeDirectoryForCurrentUser.path + path.dropFirst()
+            ? PlatformPaths.home + path.dropFirst()
             : path
 
         var config = SmartVaultConfig(pickedPath: expanded)
@@ -109,7 +109,7 @@ public actor VaultDetector {
     private func detectHomeSources(config: SmartVaultConfig) -> SmartVaultConfig {
         var config = config
         let fm = FileManager.default
-        let home = fm.homeDirectoryForCurrentUser.path
+        let home = PlatformPaths.home
 
         // ~/.claude/plans
         let claudePlans = home + "/.claude/plans"
