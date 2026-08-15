@@ -31,6 +31,16 @@ export default class HydraPlugin extends Plugin {
   private refreshTimer: number | null = null;
 
   async onload() {
+    try {
+      await this.initializePlugin();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      new Notice(`Hydra partially failed: ${msg}`, 8000);
+      console.error('Hydra onload error:', err);
+    }
+  }
+
+  private async initializePlugin() {
     await this.loadSettings();
 
     // Initialize the bridge to the Hydra binary

@@ -91,6 +91,9 @@ export class HydraBridge {
   // MARK: - Binary execution
 
   private async run(args: string[]): Promise<string> {
+    if (!execFileAsync) {
+      throw new Error("Binary mode unavailable — using heuristic mode");
+    }
     try {
       const { stdout } = await execFileAsync(this.binaryPath, args, {
         maxBuffer: 10 * 1024 * 1024,
@@ -98,7 +101,8 @@ export class HydraBridge {
       });
       return stdout;
     } catch (err: any) {
-      throw new Error(`Hydra binary error: ${err.message}`);
+      const msg = err?.message ?? String(err);
+      throw new Error(`Hydra binary error: ${msg}`);
     }
   }
 
