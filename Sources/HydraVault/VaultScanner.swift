@@ -18,7 +18,6 @@ public actor VaultScanner {
 
     /// Scan the entire vault and return a typed inventory.
     public func scan() async throws -> VaultInventory {
-        var notes: [VaultNote] = []
         let baseURL = URL(fileURLWithPath: vaultRoot)
 
         let enumerator = fileManager.enumerator(
@@ -27,11 +26,10 @@ public actor VaultScanner {
             options: [.skipsHiddenFiles]
         )
 
+        // Collect all markdown file URLs first
+        var fileURLs: [URL] = []
         while let fileURL = enumerator?.nextObject() as? URL {
-            // Skip non-markdown files
             guard fileURL.pathExtension == "md" else { continue }
-
-            // Skip .obsidian, .git, .smart-env, .claude directories
             let path = fileURL.path
             if path.contains("/.obsidian/") ||
                path.contains("/.git/") ||
@@ -39,28 +37,56 @@ public actor VaultScanner {
                path.contains("/.claude/") {
                 continue
             }
+            fileURLs.append(fileURL)
+        }
 
-            let note = try await parseNote(at: fileURL, vaultRootPath: vaultRoot)
-            notes.append(note)
+        // Parse in parallel (bounded — up to 16 concurrent reads)
+        let notes: [VaultNote] = try await withThrowingTaskGroup(of: VaultNote.self) { group in
+            var results: [VaultNote] = []
+            results.reserveCapacity(fileURLs.count)
+
+            var iterator = fileURLs.makeIterator()
+            var inFlight = 0
+            let maxConcurrent = 16
+
+            func addNext() throws {
+                guard let url = iterator.next() else { return }
+                group.addTask { [self] in
+                    try await parseNote(at: url, vaultRootPath: vaultRoot)
+                }
+                inFlight += 1
+            }
+
+            // Prime the pipeline
+            for _ in 0..<maxConcurrent { try addNext() }
+
+            while let note = try await group.next() {
+                results.append(note)
+                inFlight -= 1
+                try addNext()
+            }
+
+            return results
         }
 
         // Resolve orphaned status (no incoming wikilinks)
-        let wikilinkTargets = Set(notes.flatMap { $0.wikilinks.map { $0.lowercased() } })
-        for i in notes.indices {
-            let titleLower = notes[i].title.lowercased()
-            notes[i].orphaned = !wikilinkTargets.contains(titleLower)
+        var mutableNotes = notes
+        let wikilinkTargets = Set(mutableNotes.flatMap { $0.wikilinks.map { $0.lowercased() } })
+        for i in mutableNotes.indices {
+            let titleLower = mutableNotes[i].title.lowercased()
+            mutableNotes[i].orphaned = !wikilinkTargets.contains(titleLower)
         }
 
         return VaultInventory(
             vaultRoot: vaultRoot,
-            notes: notes,
+            notes: mutableNotes,
             scannedAt: Date()
         )
     }
 
     /// Parse a single markdown file into a VaultNote.
     public func parseNote(at fileURL: URL, vaultRootPath: String) async throws -> VaultNote {
-        let content = try String(contentsOf: fileURL, encoding: .utf8)
+        let content = try await String(contentsOf: fileURL, encoding: .utf8)
         let absolutePath = fileURL.path
         let relativePath = String(absolutePath.dropFirst(vaultRootPath.count + 1)) // strip vault root + "/"
         let resourceValues = try fileURL.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])

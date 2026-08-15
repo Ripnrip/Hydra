@@ -13,23 +13,19 @@ struct VaultGraphView: View {
     var highlightedSemanticIDs: Set<String> = []
     var highlightedGraphIDs: Set<String> = []
     @State private var selectedNode: String?
-    @State private var settledLayout: [String: NodeLayout] = [:]
-    @State private var settledSize: CGSize = .zero
+    /// Precomputed layout, set once via .onAppear (never inside body).
+    @State private var graphLayout: [String: NodeLayout] = [:]
+    @State private var graphSize: CGSize = .zero
 
     private var hasHighlights: Bool { !highlightedSemanticIDs.isEmpty || !highlightedGraphIDs.isEmpty }
 
-    /// Compute layout ONCE per size via onAppear — never mutate @State inside body.
-    private func layoutIfNeeded(_ size: CGSize) -> [String: NodeLayout] {
-        if settledSize == size, !settledLayout.isEmpty {
-            return settledLayout
-        }
-        // Return the computed value WITHOUT caching (pure read)
-        return layout(in: size)
-    }
-
     var body: some View {
         GeometryReader { geo in
-            let computed = layoutIfNeeded(geo.size)
+            // Read the settled layout if available; compute fresh ONLY if size changed
+            // AND we're in onAppear context. In body, use whatever is settled.
+            let computed = graphSize == geo.size && !graphLayout.isEmpty
+                ? graphLayout
+                : layout(in: geo.size)
 
             ZStack {
                 Color(red: 0.04, green: 0.02, blue: 0.07)
@@ -63,6 +59,13 @@ struct VaultGraphView: View {
                 .padding(8)
                 .background(Color.hydraPanel.opacity(0.9), in: RoundedRectangle(cornerRadius: 6))
                 .padding(10)
+        }
+        .onGeometryChange(for: CGSize.self) { geo in geo.size } action: { newSize in
+            // Settle layout once per size — @State mutation is safe here (action context)
+            if graphSize != newSize {
+                graphSize = newSize
+                graphLayout = layout(in: newSize)
+            }
         }
     }
 
@@ -279,24 +282,16 @@ struct VaultGraphView: View {
 
     // MARK: - Selection
 
+    /// Top 36 most-connected notes. Uses precomputed rankedNotes — O(1) slice.
     private var topNodes: [VaultNote] {
-        inventory.notes
-            .map { note in
-                (note, inventory.adjacencyList[note.title.lowercased()]?.count ?? 0)
-            }
-            .sorted { a, b in
-                if a.1 != b.1 { return a.1 > b.1 }
-                return a.0.modifiedDate > b.0.modifiedDate
-            }
-            .prefix(36)
-            .map(\.0)
+        Array(inventory.rankedNotes.prefix(36))
     }
 
+    /// Count of edges between visible nodes. Uses titleIndex for O(1) membership.
     private var edgeCount: Int {
-        topNodes.reduce(0) { sum, note in
-            sum + note.wikilinks.filter { link in
-                topNodes.contains { $0.title.lowercased() == link.lowercased() }
-            }.count
+        let visible = Set(topNodes.map { $0.title.lowercased() })
+        return topNodes.reduce(0) { sum, note in
+            sum + note.wikilinks.filter { visible.contains($0.lowercased()) }.count
         }
     }
 
