@@ -1,4 +1,4 @@
-import { Plugin, Notice, TFile, MarkdownView, addIcon } from 'obsidian';
+import { Plugin, Notice, TFile, MarkdownView, addIcon, App, PluginSettingTab, Setting } from 'obsidian';
 
 // Hydra Obsidian Plugin
 // Calls the Hydra binary (or HTTP endpoint) for classification, tagging,
@@ -387,7 +387,6 @@ export default class HydraPlugin extends Plugin {
 }
 
 // Settings tab
-import { App, PluginSettingTab, Setting } from 'obsidian';
 
 class HydraSettingTab extends PluginSettingTab {
   plugin: HydraPlugin;
