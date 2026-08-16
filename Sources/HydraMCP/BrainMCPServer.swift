@@ -1,61 +1,26 @@
+// BrainMCPServer.swift — typed MCP stdio server for Hydra.
+//
+// Rewrite of the dynamic-JSON server (swift-canon Exhibit 1: JSONSerialization
+// dictionaries, `try?` casting at the trust boundary, `Any` ids echoed via
+// NSNull). Shapes ported from Ripnrip/Andromeda AndromedaMCP @ 1d8920b:
+// typed envelopes (RPC.swift), notification law (`id` omitted = never reply;
+// explicit `"id": null` = -32600), real initialize handshake, ping, real
+// JSON Schemas, typed tool arguments, and line-framed stdin — the old loop
+// read arbitrary chunks, so two requests arriving together parsed as one
+// garbage message and a split request silently died.
+//
+// Pure core / effect shell: `handle(line:)` is the testable typed core;
+// `run()` is the only effect (stdin/stdout).
+
 import Foundation
 import HydraCore
 import HydraVault
 import HydraHealth
 
-// MARK: - MCP Tool Definitions
-
-/// MCP tools exposed to Claude Code and other agents.
-/// Focused on Claude stdio transport for now.
-public enum MCPTool: String, Sendable, CaseIterable {
-    case hydrate       // trigger a hydration pass
-    case search        // search the vault
-    case healthCheck   = "health_check"
-    case relationships // query relationship graph
-    case gaps          // gap analysis
-    case timeline      // chronological view
-    case tagReport     = "tag_report"
-    case projectNote   // project a single artifact into the vault
-
-    public var description: String {
-        switch self {
-        case .hydrate:       return "Trigger a context hydration pass from configured sources"
-        case .search:        return "Search vault notes by text, tag, or relationship"
-        case .healthCheck:   return "Run vault health checks and return the report"
-        case .relationships: return "Query the relationship graph for an artifact"
-        case .gaps:          return "Analyze gaps in the vault (missing plans, unlinked sessions)"
-        case .timeline:      return "Get a chronological timeline of vault entries"
-        case .tagReport:     return "Report on tag usage, variants, and dedup suggestions"
-        case .projectNote:   return "Project a single artifact into the vault"
-        }
-    }
-
-    public var inputSchema: [String: String] {
-        switch self {
-        case .hydrate:
-            return ["mode": "string (backfill|watch|adHoc)", "sources": "array", "dry_run": "boolean"]
-        case .search:
-            return ["query": "string", "tag": "string?", "limit": "int?"]
-        case .healthCheck:
-            return ["vault_path": "string"]
-        case .relationships:
-            return ["artifact_id": "string?", "depth": "int?"]
-        case .gaps:
-            return ["severity": "string?"]
-        case .timeline:
-            return ["from": "string?", "to": "string?", "limit": "int?"]
-        case .tagReport:
-            return ["include_variants": "boolean"]
-        case .projectNote:
-            return ["source_path": "string", "dry_run": "boolean"]
-        }
-    }
-}
-
 // MARK: - MCP Server
 
-/// Minimal JSON-RPC 2.0 server for Claude stdio transport.
-/// Reads requests from stdin, writes responses to stdout.
+/// Typed JSON-RPC 2.0 server for the Claude stdio transport.
+/// Reads newline-delimited requests from stdin, writes responses to stdout.
 public actor HydraMCPServer {
     private let vaultRoot: String
 
@@ -63,179 +28,282 @@ public actor HydraMCPServer {
         self.vaultRoot = vaultRoot
     }
 
-    /// Run the server — reads JSON-RPC from stdin, writes to stdout.
+    /// Run the server: line-framed stdin loop, responses to stdout.
+    /// Never volunteers messages — the old server printed an unrequested
+    /// initialize result at startup and then answered the client's actual
+    /// `initialize` with `-32601`.
     public func run() async {
         let stdin = FileHandle.standardInput
+        var buffer = Data()
 
-        // Announce available tools
-        let initResponse = initializeResponse()
-        print(initResponse)
-        fflush(stdout)
-
-        // Read loop
-        let bufferSize = 65536
         while true {
-            let data = stdin.availableData
-            if data.isEmpty { break }
-
-            guard let line = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) else {
-                continue
+            let chunk = stdin.availableData
+            if chunk.isEmpty {
+                // EOF — flush any trailing line that lacked a newline.
+                if !buffer.isEmpty, let line = String(data: buffer, encoding: .utf8) {
+                    await reply(to: line)
+                }
+                return
             }
-
-            let response = await handle(line)
-            print(response)
-            fflush(stdout)
+            buffer.append(chunk)
+            // Frame on newlines: a chunk may carry several requests, and a
+            // request may span several chunks. Both are now correct.
+            while let newline = buffer.firstIndex(of: UInt8(ascii: "\n")) {
+                let lineData = buffer[buffer.startIndex..<newline]
+                buffer = Data(buffer[buffer.index(after: newline)...])
+                if let line = String(data: lineData, encoding: .utf8) {
+                    await reply(to: line)
+                }
+            }
         }
     }
 
-    // MARK: - Request handling
+    private func reply(to line: String) async {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+        guard let response = await handle(line: trimmed),
+              let payload = Self.encoded(response) else { return }
+        FileHandle.standardOutput.write(Data(payload.utf8))
+        FileHandle.standardOutput.write(Data("\n".utf8))
+    }
 
-    private func handle(_ json: String) async -> String {
-        // Parse JSON-RPC request
-        guard let data = json.data(using: .utf8),
-              let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let method = parsed["method"] as? String else {
-            return errorResponse(id: 0, code: -32700, message: "Parse error")
+    // MARK: - Request handling (pure core)
+
+    /// Handle one JSON-RPC line. Returns the response line, or `nil` for
+    /// messages that must not be answered (notifications) and lines that
+    /// cannot produce honest output (empty/non-UTF8/impossible encodes).
+    public func handle(line: String) async -> String? {
+        guard let data = line.data(using: .utf8) else { return nil }
+
+        let header: RPCRequestHeader
+        switch Self.decode(RPCRequestHeader.self, from: data, id: nil) {
+        case .ok(let decoded): header = decoded
+        case .reply(let line): return line.isEmpty ? nil : line
         }
 
-        let request = parsed
-        let id = request["id"] ?? NSNull()
+        // JSON-RPC 2.0: a message whose `id` key is OMITTED is a
+        // notification — the server MUST NOT reply, whatever the method.
+        // An explicit `"id": null` is not a notification (and not a valid
+        // id either) — it gets an invalid-request error so the caller is
+        // never left waiting.
+        if header.id == nil {
+            if header.idOmitted { return nil }
+            return Self.encoded(RPCErrorResponse(
+                id: nil,
+                code: .invalidRequest,
+                message: "Invalid request: id must be a number or string when present, not null"
+            ))
+        }
 
-        switch method {
+        switch header.method {
+        case "initialize":
+            struct InitializeParams: Decodable {}
+            switch Self.decode(RPCRequest<InitializeParams>.self, from: data, id: header.id) {
+            case .ok(let request):
+                return Self.encoded(RPCResult(id: request.id, result: InitializeResult()))
+            case .reply(let line): return line.isEmpty ? nil : line
+            }
+
+        case "ping":
+            // MCP 2025-06-18: the receiver MUST respond to a ping request
+            // promptly with an (empty) result.
+            switch Self.decode(RPCRequest<EmptyArguments>.self, from: data, id: header.id) {
+            case .ok(let request):
+                return Self.encoded(RPCResult(id: request.id, result: EmptyResult()))
+            case .reply(let line): return line.isEmpty ? nil : line
+            }
+
         case "tools/list":
-            return toolsListResponse(id: id)
+            struct NoParams: Decodable {}
+            switch Self.decode(RPCRequest<NoParams>.self, from: data, id: header.id) {
+            case .ok(let request):
+                return Self.encoded(RPCResult(id: request.id, result: ToolsListResult(tools: HydraTool.all)))
+            case .reply(let line): return line.isEmpty ? nil : line
+            }
 
         case "tools/call":
-            let params = request["params"] as? [String: Any] ?? [:]
-            guard let toolName = params["name"] as? String else {
-                return errorResponse(id: id, code: -32602, message: "Missing tool name")
-            }
-            let arguments = params["arguments"] as? [String: Any] ?? [:]
-            let result = await handleToolCall(name: toolName, arguments: arguments)
-            return resultResponse(id: id, result: result)
+            return await toolCall(data, requestID: header.id)
 
         default:
-            return errorResponse(id: id, code: -32601, message: "Method not found: \(method)")
+            return Self.encoded(RPCErrorResponse(
+                id: header.id,
+                code: .methodNotFound,
+                message: "Method not found: \(header.method)"
+            ))
         }
     }
 
-    private func handleToolCall(name: String, arguments: [String: Any]) async -> [String: Any] {
-        guard let tool = MCPTool(rawValue: name) else {
-            return ["error": "Unknown tool: \(name)"]
+    // MARK: - Tool dispatch
+
+    /// First decode pass inside `tools/call`: just the tool name, so the
+    /// second pass can decode tool-specific arguments.
+    private struct ToolNameProbe: Decodable {
+        struct Params: Decodable { let name: String }
+        let params: Params
+    }
+
+    private func toolCall(_ data: Data, requestID: RPCID?) async -> String? {
+        let probe: ToolNameProbe
+        switch Self.decode(ToolNameProbe.self, from: data, id: requestID) {
+        case .ok(let decoded): probe = decoded
+        case .reply(let line): return line.isEmpty ? nil : line
         }
 
-        switch tool {
-        case .healthCheck:
-            let scanner = VaultScanner(vaultRoot: vaultRoot)
-            do {
-                let inventory = try await scanner.scan()
-                let checker = HealthChecker()
-                let report = checker.checkAll(inventory)
-                return [
-                    "status": report.overallStatus.rawValue,
-                    "summary": report.summary,
-                    "checks": report.checks.map { check -> [String: Any] in
-                        [
-                            "name": check.name,
-                            "status": check.status.rawValue,
-                            "message": check.message,
-                            "count": check.affectedCount
-                        ]
-                    }
-                ]
-            } catch {
-                return ["error": "Scan failed: \(error.localizedDescription)"]
+        switch probe.params.name {
+        case HydraTool.search.name:
+            switch Self.decode(ToolCallRequest<SearchArguments>.self, from: data, id: requestID) {
+            case .ok(let request): return await runSearch(request)
+            case .reply(let line): return line.isEmpty ? nil : line
             }
 
-        case .search:
-            let query = arguments["query"] as? String ?? ""
-            let scanner = VaultScanner(vaultRoot: vaultRoot)
-            do {
-                let inventory = try await scanner.scan()
-                let results = inventory.notes.filter { note in
-                    note.title.localizedCaseInsensitiveContains(query)
-                    || note.tags.contains { $0.localizedCaseInsensitiveContains(query) }
-                }
-                return [
-                    "count": results.count,
-                    "results": results.prefix(20).map { note -> [String: Any] in
-                        [
-                            "title": note.title,
-                            "path": note.relativePath,
-                            "tags": note.tags,
-                            "modified": ISO8601DateFormatter().string(from: note.modifiedDate)
-                        ]
-                    }
-                ]
-            } catch {
-                return ["error": "Scan failed: \(error.localizedDescription)"]
+        case HydraTool.healthCheck.name:
+            switch Self.decode(ToolCallRequest<HealthCheckArguments>.self, from: data, id: requestID) {
+            case .ok(let request): return await runHealthCheck(request)
+            case .reply(let line): return line.isEmpty ? nil : line
             }
 
         default:
-            return ["status": "not_yet_implemented", "tool": name]
-        }
-    }
-
-    // MARK: - JSON-RPC responses
-
-    private func initializeResponse() -> String {
-        let response: [String: Any] = [
-            "jsonrpc": "2.0",
-            "result": [
-                "protocolVersion": "2024-11-05",
-                "serverInfo": [
-                    "name": "hydra",
-                    "version": "0.1.0"
-                ]
-            ]
-        ]
-        return jsonString(response)
-    }
-
-    private func toolsListResponse(id: Any) -> String {
-        let response: [String: Any] = [
-            "jsonrpc": "2.0",
-            "id": id,
-            "result": [
-                "tools": MCPTool.allCases.map { tool -> [String: Any] in
-                    [
-                        "name": tool.rawValue,
-                        "description": tool.description,
-                        "inputSchema": ["type": "object", "properties": tool.inputSchema]
-                    ]
+            switch Self.decode(ToolCallRequest<EmptyArguments>.self, from: data, id: requestID) {
+            case .ok(let request):
+                // Known-but-unimplemented tools answer honestly; unknown
+                // tools are tool-level errors (MCP `isError`), not silence.
+                if HydraTool.all.contains(where: { $0.name == probe.params.name }) {
+                    return Self.encoded(RPCResult(
+                        id: request.id,
+                        result: CallToolResult.text("not_yet_implemented: \(probe.params.name)")
+                    ))
                 }
-            ]
-        ]
-        return jsonString(response)
-    }
-
-    private func resultResponse(id: Any, result: [String: Any]) -> String {
-        let response: [String: Any] = [
-            "jsonrpc": "2.0",
-            "id": id,
-            "result": [
-                "content": [
-                    ["type": "text", "text": jsonString(result)]
-                ]
-            ]
-        ]
-        return jsonString(response)
-    }
-
-    private func errorResponse(id: Any, code: Int, message: String) -> String {
-        let response: [String: Any] = [
-            "jsonrpc": "2.0",
-            "id": id,
-            "error": ["code": code, "message": message]
-        ]
-        return jsonString(response)
-    }
-
-    private func jsonString(_ object: Any) -> String {
-        guard let data = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]),
-              let string = String(data: data, encoding: .utf8) else {
-            return "{}"
+                return Self.encoded(RPCResult(
+                    id: request.id,
+                    result: CallToolResult.text("Error: unknown tool '\(probe.params.name)'", isError: true)
+                ))
+            case .reply(let line): return line.isEmpty ? nil : line
+            }
         }
-        return string
+    }
+
+    private func runSearch(_ request: ToolCallRequest<SearchArguments>) async -> String? {
+        guard let arguments = request.params.arguments else {
+            return Self.encoded(RPCErrorResponse(
+                id: request.id,
+                code: .invalidParams,
+                message: "Invalid request: missing key 'arguments' at root"
+            ))
+        }
+        do {
+            let scanner = VaultScanner(vaultRoot: vaultRoot)
+            let inventory = try await scanner.scan()
+            let matched = inventory.notes.filter { note in
+                let matchesQuery = note.title.localizedCaseInsensitiveContains(arguments.query)
+                    || note.tags.contains { $0.localizedCaseInsensitiveContains(arguments.query) }
+                guard matchesQuery else { return false }
+                if let tag = arguments.tag, !tag.isEmpty {
+                    return note.tags.contains { $0.localizedCaseInsensitiveContains(tag) }
+                }
+                return true
+            }
+            let limit = max(0, arguments.limit ?? 20)
+            let hits = matched.prefix(limit).map { note in
+                SearchHit(
+                    title: note.title,
+                    path: note.relativePath,
+                    tags: note.tags,
+                    modified: note.modifiedDate
+                )
+            }
+            return Self.encoded(RPCResult(
+                id: request.id,
+                result: Self.resultText(SearchResult(count: matched.count, results: Array(hits)))
+            ))
+        } catch {
+            return Self.encoded(RPCResult(
+                id: request.id,
+                result: CallToolResult.text("Error: Scan failed: \(error.localizedDescription)", isError: true)
+            ))
+        }
+    }
+
+    private func runHealthCheck(_ request: ToolCallRequest<HealthCheckArguments>) async -> String? {
+        do {
+            let scanner = VaultScanner(vaultRoot: vaultRoot)
+            let inventory = try await scanner.scan()
+            let report = HealthChecker().checkAll(inventory)
+            let summary = HealthCheckSummary(
+                status: report.overallStatus.rawValue,
+                summary: report.summary,
+                checks: report.checks.map { check in
+                    HealthCheckLine(
+                        name: check.name,
+                        status: check.status.rawValue,
+                        message: check.message,
+                        count: check.affectedCount
+                    )
+                }
+            )
+            return Self.encoded(RPCResult(
+                id: request.id,
+                result: Self.resultText(summary)
+            ))
+        } catch {
+            return Self.encoded(RPCResult(
+                id: request.id,
+                result: CallToolResult.text("Error: Scan failed: \(error.localizedDescription)", isError: true)
+            ))
+        }
+    }
+
+    // MARK: - Encode / decode with evidence
+
+    /// Decode outcome: a value, or the response line that must be sent back
+    /// in its place (`RPCErrorResponse` is a wire payload, not an `Error`).
+    private enum Decoded<T> {
+        case ok(T)
+        case reply(String)
+    }
+
+    /// Decode with evidence: failures produce the error response carrying
+    /// the coding path instead of collapsing to a silent nil.
+    private static func decode<T: Decodable>(
+        _ type: T.Type, from data: Data, id: RPCID?
+    ) -> Decoded<T> {
+        do {
+            return .ok(try JSONDecoder().decode(type, from: data))
+        } catch let error as DecodingError {
+            let isHeader = type == RPCRequestHeader.self || type == ToolNameProbe.self
+            let response = RPCErrorResponse(
+                id: id,
+                code: isHeader ? .parseError : .invalidParams,
+                message: "Invalid request: \(error.brief)"
+            )
+            return .reply(Self.encoded(response) ?? "")
+        } catch {
+            let response = RPCErrorResponse(id: id, code: .parseError, message: "Parse error")
+            return .reply(Self.encoded(response) ?? "")
+        }
+    }
+
+    /// Encode an envelope deterministically. Returns nil only if encoding a
+    /// member of our own closed envelope set fails — unreachable by
+    /// construction; staying silent beats emitting corrupt JSON.
+    private static func encoded<Response: Encodable>(_ response: Response) -> String? {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        guard let data = try? encoder.encode(response) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    /// Wrap a typed result payload as CallToolResult text — JSONEncoder owns
+    /// formatting (`.sortedKeys`, `.iso8601` dates); the old server hand-built
+    /// `[String: Any]` dictionaries per call site.
+    private static func resultText(_ payload: some Encodable) -> CallToolResult {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        guard let data = try? encoder.encode(payload),
+              let text = String(data: data, encoding: .utf8) else {
+            return CallToolResult.text("Error: failed to encode result payload", isError: true)
+        }
+        return CallToolResult.text(text)
     }
 }
