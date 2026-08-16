@@ -54,7 +54,11 @@ private extension DispatchSource {
 
 // MARK: - Scheduled Task
 
-private final class ScheduledTask: @unchecked Sendable {
+/// Only ever touched from the MaintenanceScheduler actor's isolation (stored
+/// in the actor's `tasks` dictionary, read/written solely in actor methods);
+/// the timer event handler captures the task closure, never this object —
+/// so it stays a plain non-Sendable class and the compiler proves the story.
+private final class ScheduledTask {
     let name: String
     let interval: TimeInterval
     var timer: DispatchSourceTimer?

@@ -14,7 +14,6 @@ let package = Package(
         .executable(name: "HydraApp", targets: ["HydraApp"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/hummingbird-project/hummingbird.git", from: "2.25.0"),
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.5.0"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.6.0"),
         .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.17.0"),
@@ -28,8 +27,6 @@ let package = Package(
         .target(name: "HydraHealth", dependencies: ["HydraCore", "HydraVault"]),
         .target(name: "HydraMCP", dependencies: [
             "HydraCore", "HydraVault", "HydraHealth",
-            .product(name: "Hummingbird", package: "hummingbird"),
-            .product(name: "HummingbirdCore", package: "hummingbird"),
         ]),
         .target(name: "HydraGraph", dependencies: ["HydraCore"]),
         .executableTarget(name: "HydraCLI", dependencies: [
@@ -37,12 +34,13 @@ let package = Package(
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
         ]),
         .executableTarget(name: "HydraApp", dependencies: [
-            "HydraCore", "HydraVault", "HydraHealth", "HydraGraph", "HydraGraph",
+            "HydraCore", "HydraVault", "HydraHealth", "HydraGraph",
             .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
         ]),
         .testTarget(name: "HydraCoreTests", dependencies: ["HydraCore"]),
         .testTarget(name: "HydraVaultTests", dependencies: ["HydraVault"]),
         .testTarget(name: "HydraHealthTests", dependencies: ["HydraHealth"]),
+        .testTarget(name: "HydraMCPTests", dependencies: ["HydraMCP"]),
         .testTarget(name: "SnapshotTests", dependencies: [
             "HydraCore", "HydraVault", "HydraHealth",
             "HydraApp",
