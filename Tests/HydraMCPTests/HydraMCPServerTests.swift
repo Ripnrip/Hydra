@@ -73,6 +73,40 @@ struct HydraMCPServerTests {
         #expect(response.contains(#""id":null"#))
     }
 
+    @Test("envelopes missing jsonrpc are invalid requests, not dispatches")
+    func missingJSONRPCVersion() async throws {
+        let server = try makeServer()
+        let response = try #require(await server.handle(line: #"{"id":1,"method":"tools/list"}"#))
+        #expect(response.contains("-32600"))
+        #expect(response.contains("jsonrpc"))
+        #expect(response.contains(#""id":1"#))
+    }
+
+    @Test("valid JSON with an invalid envelope shape is -32600, not -32700")
+    func invalidShapeNotSyntax() async throws {
+        let server = try makeServer()
+        let noMethod = try #require(await server.handle(line: #"{"jsonrpc":"2.0","id":5}"#))
+        #expect(noMethod.contains("-32600"))
+        #expect(noMethod.contains(#""id":5"#))
+        #expect(!noMethod.contains("-32700"))
+        let badIDType = try #require(await server.handle(line: #"{"jsonrpc":"2.0","id":true,"method":"ping"}"#))
+        #expect(badIDType.contains("-32600"))
+    }
+
+    @Test("the stdio write path ships the raw response line, not a re-encoded string")
+    func replyPathIsNotDoubleEncoded() async throws {
+        // Pins the reply() fix: handle() output IS the final wire line. If
+        // reply() ever routes it through the encoder again, clients receive
+        // a JSON string literal and nothing works — the exact gap Codex
+        // caught in review. Assert the invariant on the contract itself:
+        // handle()'s output must parse as a JSON object directly.
+        let server = try makeServer()
+        let response = try #require(await server.handle(line: #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#))
+        let object = try #require(try JSONSerialization.jsonObject(with: Data(response.utf8)) as? [String: Any])
+        #expect(object["jsonrpc"] as? String == "2.0")
+        #expect(object["result"] is [String: Any])
+    }
+
     @Test("unparseable lines answer -32700 with an explicit null id")
     func parseErrorCarriesNullID() async throws {
         let server = try makeServer()

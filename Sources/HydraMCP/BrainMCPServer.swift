@@ -17,6 +17,13 @@ import HydraCore
 import HydraVault
 import HydraHealth
 
+/// Minimal id-only probe for salvaging a well-formed id out of an
+/// otherwise-invalid envelope (JSON-RPC 2.0: reply with the request's id
+/// when detectable, null only when it is not).
+private struct IDSalvage: Decodable {
+    let id: RPCID?
+}
+
 // MARK: - MCP Server
 
 /// Typed JSON-RPC 2.0 server for the Claude stdio transport.
@@ -61,9 +68,11 @@ public actor HydraMCPServer {
     private func reply(to line: String) async {
         let trimmed = line.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
-        guard let response = await handle(line: trimmed),
-              let payload = Self.encoded(response) else { return }
-        FileHandle.standardOutput.write(Data(payload.utf8))
+        // handle() returns the COMPLETE encoded response line — write it as
+        // bytes directly. (Passing it through the encoder again would ship a
+        // JSON string literal instead of a JSON-RPC object.)
+        guard let response = await handle(line: trimmed) else { return }
+        FileHandle.standardOutput.write(Data(response.utf8))
         FileHandle.standardOutput.write(Data("\n".utf8))
     }
 
@@ -74,6 +83,13 @@ public actor HydraMCPServer {
     /// cannot produce honest output (empty/non-UTF8/impossible encodes).
     public func handle(line: String) async -> String? {
         guard let data = line.data(using: .utf8) else { return nil }
+
+        // Stage 1 — syntax only: -32700 is reserved for bytes that are not
+        // JSON at all. (JSONSerialization is a syntax gate here, not a
+        // typing layer — everything typed stays Codable.)
+        guard (try? JSONSerialization.jsonObject(with: data)) != nil else {
+            return Self.encoded(RPCErrorResponse(id: nil, code: .parseError, message: "Parse error"))
+        }
 
         let header: RPCRequestHeader
         switch Self.decode(RPCRequestHeader.self, from: data, id: nil) {
@@ -92,6 +108,16 @@ public actor HydraMCPServer {
                 id: nil,
                 code: .invalidRequest,
                 message: "Invalid request: id must be a number or string when present, not null"
+            ))
+        }
+
+        // A valid JSON-RPC 2.0 envelope names its version; anything else is
+        // an invalid request (id preserved), never a method dispatch.
+        guard header.jsonrpc == "2.0" else {
+            return Self.encoded(RPCErrorResponse(
+                id: header.id,
+                code: .invalidRequest,
+                message: "Invalid request: jsonrpc must be \"2.0\""
             ))
         }
 
@@ -269,10 +295,17 @@ public actor HydraMCPServer {
         do {
             return .ok(try JSONDecoder().decode(type, from: data))
         } catch let error as DecodingError {
-            let isHeader = type == RPCRequestHeader.self || type == ToolNameProbe.self
+            // Syntax was validated before decoding, so a header DecodingError
+            // means valid JSON with an invalid envelope shape (-32600), never
+            // -32700. Tool probes fail on params shape (-32602).
+            let isHeader = type == RPCRequestHeader.self
+            // Salvage a well-formed id from invalid envelopes — JSON-RPC 2.0:
+            // reply with the request's id when it is detectable, null only
+            // when it is not.
+            let salvagedID = (try? JSONDecoder().decode(IDSalvage.self, from: data))?.id
             let response = RPCErrorResponse(
-                id: id,
-                code: isHeader ? .parseError : .invalidParams,
+                id: salvagedID ?? id,
+                code: isHeader ? .invalidRequest : .invalidParams,
                 message: "Invalid request: \(error.brief)"
             )
             return .reply(Self.encoded(response) ?? "")
