@@ -5,7 +5,7 @@ import Foundation
 /// Authority hierarchy for resolving conflicts between sources.
 /// From the vault ingestion contract: Git receipts > control-plane ledger > CHANGELOG > observations > wiki notes.
 /// Mirror is never authoritative.
-public enum Authority: String, Sendable, Equatable, Comparable {
+public enum Authority: String, Sendable, Equatable, Comparable, Codable {
     case gitReceipt = "git"
     case controlPlaneLedger = "ledger"
     case changelog = "changelog"

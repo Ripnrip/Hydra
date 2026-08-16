@@ -6,7 +6,7 @@ import Foundation
 /// Handles local, iCloud, and network paths (Tailscale/SSH) uniformly.
 /// This is what makes Hydra work on any device — iPhone, Mac, VM —
 /// pointing at vaults that might be local, in iCloud, or on a remote host.
-public struct VaultLocation: Sendable, Equatable {
+public struct VaultLocation: Sendable, Equatable, Codable {
     public let kind: VaultLocationKind
     public let rawPath: String
     public let displayName: String
@@ -57,7 +57,7 @@ public struct VaultLocation: Sendable, Equatable {
 
 // MARK: - Vault Location Kind
 
-public enum VaultLocationKind: Sendable, Equatable {
+public enum VaultLocationKind: Sendable, Equatable, Codable {
     case local
     case iCloud
     case tailscale(host: String)   // e.g. "studio.local" or "100.x.x.x"
@@ -96,7 +96,7 @@ public extension VaultLocation {
 
 /// A source location — where hydration data comes from.
 /// Can be local (Claude plans, Codex sessions), iCloud, or remote (VM paths over Tailscale).
-public struct SourceLocation: Sendable, Equatable {
+public struct SourceLocation: Sendable, Equatable, Codable {
     public let kind: SourceKind
     public let vaultLocation: VaultLocation
     public let subpath: String?
