@@ -178,14 +178,16 @@ struct HydraMCPServerTests {
         #expect(!response.contains("-326"))
     }
 
-    @Test("known-but-unimplemented tools answer honestly")
+    @Test("known-but-unimplemented tools answer honestly as tool-level errors")
     func unimplementedToolHonest() async throws {
         let server = try makeServer()
         let response = try #require(await server.handle(
             line: #"{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"hydrate","arguments":{"mode":"adHoc"}}}"#
         ))
         #expect(response.contains("not_yet_implemented"))
-        #expect(!response.contains(#""isError":true"#))
+        // The call did nothing — isError MUST be true or MCP clients treat it
+        // as a successful hydrate (Codex review round 2).
+        #expect(response.contains(#""isError":true"#))
     }
 
     @Test("health_check returns the typed report")
@@ -203,4 +205,51 @@ struct HydraMCPServerTests {
     // The line-framing fix (chunked stdin → newline-delimited messages) lives
     // in run()'s buffer loop; it is exercised by the CLI in real use. The
     // handle() core above is what these tests pin.
+
+    // MARK: - Review round 2 (params shape + numeric id shapes)
+
+    @Test("scalar or array params are -32602, never silently accepted")
+    func scalarParamsRejected() async throws {
+        let server = try makeServer()
+        // JSON-RPC parameters must be structured; the empty-struct pattern
+        // used to decode scalars as success (Codex review round 2).
+        for line in [
+            #"{"jsonrpc":"2.0","id":20,"method":"tools/list","params":7}"#,
+            #"{"jsonrpc":"2.0","id":21,"method":"tools/list","params":[]}"#,
+            #"{"jsonrpc":"2.0","id":22,"method":"ping","params":"x"}"#,
+            #"{"jsonrpc":"2.0","id":23,"method":"initialize","params":7}"#,
+        ] {
+            let response = try #require(await server.handle(line: line))
+            #expect(response.contains("-32602"), "params gate failed for: \(line)")
+        }
+        // Ids survive the rejection (salvage path).
+        let response = try #require(await server.handle(line: #"{"jsonrpc":"2.0","id":20,"method":"tools/list","params":7}"#))
+        #expect(response.contains(#""id":20"#))
+        // Object params of any shape still pass — real initialize payloads.
+        let ok = try #require(await server.handle(line: #"{"jsonrpc":"2.0","id":24,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"probe"}}}"#))
+        #expect(ok.contains(#""id":24"#))
+        #expect(!ok.contains("error"))
+    }
+
+    @Test("fractional and huge numeric ids are valid and echoed verbatim")
+    func numericIDShapesPreserved() async throws {
+        let server = try makeServer()
+        // 1.5: fractional ids are discouraged by JSON-RPC 2.0 but legal;
+        // 1e300: integers beyond the platform Int range. Both must dispatch
+        // and echo, not die as -32600 (Codex review round 2).
+        let fractional = try #require(await server.handle(line: #"{"jsonrpc":"2.0","id":1.5,"method":"ping"}"#))
+        let fractionalObject = try #require(try JSONSerialization.jsonObject(with: Data(fractional.utf8)) as? [String: Any])
+        #expect((fractionalObject["id"] as? Double) == 1.5)
+        #expect(fractionalObject["result"] != nil)
+
+        let huge = try #require(await server.handle(line: #"{"jsonrpc":"2.0","id":1e300,"method":"ping"}"#))
+        let hugeObject = try #require(try JSONSerialization.jsonObject(with: Data(huge.utf8)) as? [String: Any])
+        #expect((hugeObject["id"] as? Double) == 1e300)
+        #expect(hugeObject["result"] != nil)
+
+        // Integer ids still round-trip as integers, not 1.0.
+        let integral = try #require(await server.handle(line: #"{"jsonrpc":"2.0","id":2,"method":"ping"}"#))
+        #expect(integral.contains(#""id":2,"#))
+        #expect(!integral.contains(#""id":2.0"#))
+    }
 }

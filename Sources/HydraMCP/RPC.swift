@@ -17,9 +17,13 @@ import Foundation
 // MARK: - Request id
 
 /// JSON-RPC ids are numbers or strings; `null` is a reply target but never
-/// a request id, so decoding rejects it.
+/// a request id, so decoding rejects it. Numbers cover the full JSON-number
+/// shape: exact integers stay integers, while fractional values and integers
+/// outside the platform `Int` range (discouraged and huge, but both legal
+/// per JSON-RPC 2.0) decode as `Double` and are echoed verbatim.
 enum RPCID: Hashable, Sendable {
-    case number(Int)
+    case integer(Int)
+    case double(Double)
     case string(String)
 }
 
@@ -28,8 +32,11 @@ extension RPCID: Codable {
         let container = try decoder.singleValueContainer()
         // Union probing: each attempt is a legitimate case of the id shape,
         // and failure of the last is a real decode error, not a silent nil.
-        if let number = try? container.decode(Int.self) {
-            self = .number(number)
+        // Int-first so `1` round-trips as an integer, not `1.0`.
+        if let integer = try? container.decode(Int.self) {
+            self = .integer(integer)
+        } else if let double = try? container.decode(Double.self) {
+            self = .double(double)
         } else if let string = try? container.decode(String.self) {
             self = .string(string)
         } else {
@@ -43,7 +50,8 @@ extension RPCID: Codable {
     func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         switch self {
-        case .number(let number): try container.encode(number)
+        case .integer(let integer): try container.encode(integer)
+        case .double(let double): try container.encode(double)
         case .string(let string): try container.encode(string)
         }
     }
@@ -184,7 +192,20 @@ struct CallToolResult: Encodable, Sendable {
 
 /// Arguments payload for `tools/call` requests whose tool is not recognized;
 /// only the id is needed to reply.
-struct EmptyArguments: Decodable, Sendable {}
+///
+/// Decode gate: the wrapped member must be a JSON **object** when present.
+/// Synthesized empty `Decodable` structs accept every JSON value, so
+/// `"params": 7` and `"params": []` used to decode as success (Codex review
+/// round 2). Decoding a dictionary over a single-value container rejects
+/// scalars and arrays with `typeMismatch` on every platform — that contract
+/// is the gate. Absent keys stay `nil` (optional member).
+struct StrictJSONObject: Decodable, Sendable {
+    private struct AnyValue: Decodable {}
+
+    init(from decoder: Decoder) throws {
+        _ = try decoder.singleValueContainer().decode([String: AnyValue].self)
+    }
+}
 
 /// Empty `{}` result payload — the reply shape for `ping`.
 struct EmptyResult: Encodable, Sendable {}

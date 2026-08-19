@@ -123,8 +123,7 @@ public actor HydraMCPServer {
 
         switch header.method {
         case "initialize":
-            struct InitializeParams: Decodable {}
-            switch Self.decode(RPCRequest<InitializeParams>.self, from: data, id: header.id) {
+            switch Self.decode(RPCRequest<StrictJSONObject>.self, from: data, id: header.id) {
             case .ok(let request):
                 return Self.encoded(RPCResult(id: request.id, result: InitializeResult()))
             case .reply(let line): return line.isEmpty ? nil : line
@@ -133,15 +132,14 @@ public actor HydraMCPServer {
         case "ping":
             // MCP 2025-06-18: the receiver MUST respond to a ping request
             // promptly with an (empty) result.
-            switch Self.decode(RPCRequest<EmptyArguments>.self, from: data, id: header.id) {
+            switch Self.decode(RPCRequest<StrictJSONObject>.self, from: data, id: header.id) {
             case .ok(let request):
                 return Self.encoded(RPCResult(id: request.id, result: EmptyResult()))
             case .reply(let line): return line.isEmpty ? nil : line
             }
 
         case "tools/list":
-            struct NoParams: Decodable {}
-            switch Self.decode(RPCRequest<NoParams>.self, from: data, id: header.id) {
+            switch Self.decode(RPCRequest<StrictJSONObject>.self, from: data, id: header.id) {
             case .ok(let request):
                 return Self.encoded(RPCResult(id: request.id, result: ToolsListResult(tools: HydraTool.all)))
             case .reply(let line): return line.isEmpty ? nil : line
@@ -189,14 +187,15 @@ public actor HydraMCPServer {
             }
 
         default:
-            switch Self.decode(ToolCallRequest<EmptyArguments>.self, from: data, id: requestID) {
+            switch Self.decode(ToolCallRequest<StrictJSONObject>.self, from: data, id: requestID) {
             case .ok(let request):
-                // Known-but-unimplemented tools answer honestly; unknown
-                // tools are tool-level errors (MCP `isError`), not silence.
+                // Known-but-unimplemented tools answer honestly as tool-level
+                // errors — the call did not do anything, and MCP clients key
+                // automation off `isError`; unknown tools are the same class.
                 if HydraTool.all.contains(where: { $0.name == probe.params.name }) {
                     return Self.encoded(RPCResult(
                         id: request.id,
-                        result: CallToolResult.text("not_yet_implemented: \(probe.params.name)")
+                        result: CallToolResult.text("not_yet_implemented: \(probe.params.name)", isError: true)
                     ))
                 }
                 return Self.encoded(RPCResult(
